@@ -1,0 +1,216 @@
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { DataService } from '../services/data.service';
+import { AuthService } from '../services/auth.service';
+import { Batch, feePackages, FeePackage, Student } from '../models/app.models';
+import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
+import { ToastService } from '../services/toast.service';
+
+@Component({
+  standalone: true,
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, DeleteConfirmComponent],
+  template: `
+    <section class="space-y-5">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="text-2xl font-black">Students</h2>
+          <p class="text-sm text-neutral-500">Search, add, edit, and manage active status.</p>
+        </div>
+        <button *ngIf="auth.isAdmin()" class="btn-primary" (click)="openForm()">Add student</button>
+      </div>
+
+      <div class="panel p-4">
+        <div class="grid gap-3 md:grid-cols-[1fr_180px]">
+          <input class="form-input" placeholder="Search students" [value]="search()" (input)="search.set($any($event.target).value); load()">
+          <select class="form-input" [value]="activeFilter()" (change)="activeFilter.set($any($event.target).value); load()">
+            <option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-soft">
+        <table class="w-full min-w-[760px] text-left text-sm">
+          <thead class="bg-neutral-950 text-white">
+            <tr><th class="p-3">Name</th><th>Batch</th><th>Fee plan</th><th>Phone</th><th>Status</th><th class="text-right pr-3">Actions</th></tr>
+          </thead>
+          <tbody class="divide-y divide-neutral-100">
+            <tr *ngFor="let student of students()" class="transition hover:bg-orange-50/40">
+              <td class="p-3 font-bold"><a [routerLink]="['/students', student.id]" class="hover:text-academy-red">{{ student.name }}</a></td>
+              <td>{{ student.batch?.name || 'Unassigned' }}</td>
+              <td>{{ student.fee_plan_name }} &middot; {{ money(student.fee_plan_amount) }}</td>
+              <td>{{ student.phone_number || '-' }}</td>
+              <td><span class="badge" [class.bg-green-100]="student.is_active" [class.text-green-800]="student.is_active" [class.bg-neutral-100]="!student.is_active">{{ student.is_active ? 'Active' : 'Inactive' }}</span></td>
+              <td class="space-x-2 pr-3 text-right">
+                <button class="btn-secondary !px-3" (click)="openForm(student)">Edit</button>
+                <button class="btn-secondary !px-3" (click)="toggleActive(student)">{{ student.is_active ? 'Deactivate' : 'Activate' }}</button>
+                <button *ngIf="auth.isAdmin()" class="btn-danger !px-3" (click)="askDelete(student)">Delete</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div *ngIf="formOpen()" class="fixed inset-0 z-40 overflow-auto bg-black/55 p-4">
+      <form class="mx-auto my-6 max-w-3xl rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} student</h3>
+          <button type="button" class="btn-secondary !px-3" (click)="formOpen.set(false)">Close</button>
+        </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
+          <label><span class="form-label">Name</span><input class="form-input mt-1" [class.border-red-500]="invalid('name')" formControlName="name"><small *ngIf="invalid('name')" class="text-xs font-semibold text-red-600">Student name is required.</small></label>
+          <label><span class="form-label">Phone</span><input class="form-input mt-1" [class.border-red-500]="invalid('phone_number')" formControlName="phone_number"><small *ngIf="invalid('phone_number')" class="text-xs font-semibold text-red-600">Please enter valid mobile number.</small></label>
+          <label><span class="form-label">Age</span><input class="form-input mt-1" type="number" formControlName="age"></label>
+          <label><span class="form-label">Date of birth</span><input class="form-input mt-1" [class.border-red-500]="invalid('date_of_birth')" type="date" formControlName="date_of_birth"><small *ngIf="invalid('date_of_birth')" class="text-xs font-semibold text-red-600">Future DOB is not allowed.</small></label>
+          <label><span class="form-label">Admission date</span><input class="form-input mt-1" type="date" formControlName="admission_date"></label>
+          <label><span class="form-label">School</span><input class="form-input mt-1" formControlName="school_name"></label>
+          <label><span class="form-label">Age group</span><input class="form-input mt-1" formControlName="age_group"></label>
+          <label><span class="form-label">Batch</span><select class="form-input mt-1" formControlName="batch_id"><option [ngValue]="null">Unassigned</option><option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option></select></label>
+          <label><span class="form-label">Fee package</span><select class="form-input mt-1" formControlName="fee_package" (change)="syncFee()"><option *ngFor="let key of feeKeys" [value]="key">{{ feePackages[key].label }} &middot; {{ money(feePackages[key].amount) }}</option></select></label>
+          <label><span class="form-label">Fee amount</span><input class="form-input mt-1" type="number" formControlName="fee_plan_amount"></label>
+          <label class="md:col-span-2"><span class="form-label">Address</span><textarea class="form-input mt-1" formControlName="address" rows="3"></textarea></label>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button>
+          <button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save student' }}</button>
+        </div>
+        <p *ngIf="formError()" class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
+      </form>
+    </div>
+
+    <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteTarget()?.name || 'student'" (cancel)="deleteTarget.set(null)" (confirm)="remove()"></app-delete-confirm>
+  `
+})
+export class StudentsComponent implements OnInit {
+  private readonly fb = inject(FormBuilder);
+  private readonly data = inject(DataService);
+  private readonly toast = inject(ToastService);
+  readonly auth = inject(AuthService);
+  readonly students = signal<Student[]>([]);
+  readonly batches = signal<Batch[]>([]);
+  readonly formOpen = signal(false);
+  readonly saving = signal(false);
+  readonly formError = signal('');
+  readonly deleteTarget = signal<Student | null>(null);
+  readonly search = signal('');
+  readonly activeFilter = signal<'all' | 'active' | 'inactive'>('all');
+  readonly feePackages = feePackages;
+  readonly feeKeys = Object.keys(feePackages) as FeePackage[];
+  readonly form = this.fb.group({
+    id: [''],
+    name: ['', Validators.required],
+    age: [10, [Validators.required, Validators.min(3)]],
+    date_of_birth: ['', [this.notFutureDate]],
+    admission_date: [new Date().toISOString().slice(0, 10), Validators.required],
+    address: [''],
+    phone_number: ['', [Validators.pattern(/^[6-9]\d{9}$/)]],
+    fee_package: ['Monthly1800' as FeePackage, Validators.required],
+    fee_plan_name: ['Monthly', Validators.required],
+    fee_plan_amount: [1800, Validators.required],
+    school_name: [''],
+    age_group: [''],
+    batch_id: [null as string | null],
+    is_active: [true]
+  });
+
+  async ngOnInit(): Promise<void> {
+    await Promise.all([this.load(), this.data.listBatches().then((rows) => this.batches.set(rows))]);
+  }
+
+  load(): Promise<void> {
+    return this.data.listStudents(this.search(), this.activeFilter()).then((rows) => this.students.set(rows));
+  }
+
+  openForm(student?: Student): void {
+    this.form.reset({
+      id: student?.id ?? '',
+      name: student?.name ?? '',
+      age: student?.age ?? 10,
+      date_of_birth: student?.date_of_birth ?? '',
+      admission_date: student?.admission_date ?? new Date().toISOString().slice(0, 10),
+      address: student?.address ?? '',
+      phone_number: student?.phone_number ?? '',
+      fee_package: student?.fee_package ?? 'Monthly1800',
+      fee_plan_name: student?.fee_plan_name ?? 'Monthly',
+      fee_plan_amount: student?.fee_plan_amount ?? 1800,
+      school_name: student?.school_name ?? '',
+      age_group: student?.age_group ?? '',
+      batch_id: student?.batch_id ?? null,
+      is_active: student?.is_active ?? true
+    });
+    this.formError.set('');
+    this.formOpen.set(true);
+  }
+
+  syncFee(): void {
+    const selected = feePackages[this.form.value.fee_package as FeePackage];
+    this.form.patchValue({ fee_plan_name: selected.label, fee_plan_amount: selected.amount });
+  }
+
+  async save(): Promise<void> {
+    this.form.markAllAsTouched();
+    if (this.form.invalid || this.hasDuplicate()) return;
+    const value = this.form.getRawValue();
+    this.saving.set(true);
+    try {
+      await this.data.saveStudent({ ...value, id: value.id || undefined } as Partial<Student>);
+      this.formOpen.set(false);
+      await this.load();
+      this.toast.success('Student saved successfully.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to save student.';
+      this.formError.set(message);
+      this.toast.error(message);
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  async toggleActive(student: Student): Promise<void> {
+    await this.data.saveStudent({ id: student.id, is_active: !student.is_active });
+    await this.load();
+  }
+
+  askDelete(student: Student): void {
+    this.deleteTarget.set(student);
+  }
+
+  async remove(): Promise<void> {
+    const target = this.deleteTarget();
+    if (!target) return;
+    await this.data.delete('students', target.id);
+    this.deleteTarget.set(null);
+    await this.load();
+  }
+
+  money(value: number): string {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
+  }
+
+  invalid(name: string): boolean {
+    const control = this.form.get(name);
+    return !!control && control.invalid && (control.touched || control.dirty);
+  }
+
+  hasDuplicate(): boolean {
+    const value = this.form.getRawValue();
+    const name = value.name?.trim().toLowerCase();
+    const phone = value.phone_number?.trim();
+    const id = value.id || '';
+    if (name && value.batch_id && this.students().some((student) => student.id !== id && student.batch_id === value.batch_id && student.name.trim().toLowerCase() === name)) {
+      this.formError.set('Student already exists in this batch.');
+      return true;
+    }
+    if (phone && this.students().some((student) => student.id !== id && student.phone_number === phone)) {
+      this.formError.set('Phone number already exists.');
+      return true;
+    }
+    return false;
+  }
+
+  notFutureDate(control: { value: string | null }) {
+    return control.value && control.value > new Date().toISOString().slice(0, 10) ? { futureDate: true } : null;
+  }
+}

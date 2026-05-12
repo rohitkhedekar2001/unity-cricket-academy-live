@@ -1,0 +1,207 @@
+import { Injectable, signal } from '@angular/core';
+import { SupabaseClientService } from '../core/supabase.client';
+import { AuthService } from './auth.service';
+import {
+  AttendanceStatus,
+  Batch,
+  Coach,
+  Fee,
+  Salary,
+  Student,
+  StudentAttendance,
+  CoachAttendance
+} from '../models/app.models';
+
+type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance';
+
+@Injectable({ providedIn: 'root' })
+export class DataService {
+  readonly busy = signal(false);
+
+  constructor(private readonly supabase: SupabaseClientService, private readonly auth: AuthService) {}
+
+  private async run<T>(fn: () => PromiseLike<{ data: unknown; error: unknown }>): Promise<T> {
+    this.busy.set(true);
+    const { data, error } = await fn();
+    this.busy.set(false);
+    if (error) throw error;
+    return data as T;
+  }
+
+  listStudents(search = '', active: 'all' | 'active' | 'inactive' = 'all'): Promise<Student[]> {
+    let query = this.supabase.client
+      .from('students')
+      .select('*, batch:batches(id,name,timing,coach_id)')
+      .order('name');
+    if (search.trim()) query = query.ilike('name', `%${search.trim()}%`);
+    if (active !== 'all') query = query.eq('is_active', active === 'active');
+    return this.run<Student[]>(() => query);
+  }
+
+  getStudent(id: string): Promise<Student> {
+    return this.run<Student>(() =>
+      this.supabase.client.from('students').select('*, batch:batches(*)').eq('id', id).single()
+    );
+  }
+
+  saveStudent(student: Partial<Student>): Promise<Student> {
+    return this.upsert<Student>('students', student);
+  }
+
+  listCoaches(): Promise<Coach[]> {
+    return this.run<Coach[]>(() =>
+      this.supabase.client
+        .from('coaches')
+        .select('*, profile:profiles(id,name,email,role)')
+        .order('designation')
+    );
+  }
+
+  getCoach(id: string): Promise<Coach> {
+    return this.run<Coach>(() =>
+      this.supabase.client.from('coaches').select('*, profile:profiles(*)').eq('id', id).single()
+    );
+  }
+
+  async createCoachAccount(payload: {
+    name: string;
+    email: string;
+    password: string;
+    salary_per_month: number;
+    has_admin_access: boolean;
+    phone_number: string | null;
+    date_of_birth: string | null;
+    designation: string;
+  }): Promise<string> {
+    const currentSession = this.auth.session();
+    const { data, error } = await this.supabase.client.auth.signUp({
+      email: payload.email,
+      password: payload.password,
+      options: { data: { name: payload.name, role: payload.has_admin_access ? 'Admin' : 'Coach' } }
+    });
+    if (error) throw error;
+    const userId = data.user?.id;
+    if (!userId) throw new Error('Unable to create Supabase auth user. Check that Email auth is enabled.');
+
+    if (currentSession?.access_token && currentSession.refresh_token) {
+      await this.supabase.client.auth.setSession({
+        access_token: currentSession.access_token,
+        refresh_token: currentSession.refresh_token
+      });
+    }
+
+    return this.run<string>(() => this.supabase.client.rpc('create_coach_account', {
+      p_user_id: userId,
+      p_name: payload.name,
+      p_email: payload.email,
+      p_salary_per_month: payload.salary_per_month,
+      p_has_admin_access: payload.has_admin_access,
+      p_phone_number: payload.phone_number,
+      p_date_of_birth: payload.date_of_birth,
+      p_designation: payload.designation
+    }));
+  }
+
+  saveCoach(coach: Partial<Coach>): Promise<Coach> {
+    return this.upsert<Coach>('coaches', coach);
+  }
+
+  async updateCoachAccount(payload: {
+    p_coach_id: string;
+    p_name: string;
+    p_email: string;
+    p_salary_per_month: number;
+    p_has_admin_access: boolean;
+    p_phone_number: string | null;
+    p_date_of_birth: string | null;
+    p_designation: string;
+  }): Promise<void> {
+    await this.run<string>(() => this.supabase.client.rpc('update_coach_account', payload));
+  }
+
+  async deleteCoachAccount(coachId: string): Promise<void> {
+    await this.run<string>(() => this.supabase.client.rpc('delete_coach_account', { p_coach_id: coachId }));
+  }
+
+  listBatches(): Promise<Batch[]> {
+    return this.run<Batch[]>(() =>
+      this.supabase.client
+        .from('batches')
+        .select('*, coach:coaches(id,designation,profile:profiles(name,email)), students(id,name,is_active)')
+        .order('name')
+    );
+  }
+
+  saveBatch(batch: Partial<Batch>): Promise<Batch> {
+    return this.upsert<Batch>('batches', batch);
+  }
+
+  listStudentAttendance(batchId: string, date: string): Promise<StudentAttendance[]> {
+    return this.run<StudentAttendance[]>(() =>
+      this.supabase.client
+        .from('student_attendance')
+        .select('*, student:students(*)')
+        .eq('batch_id', batchId)
+        .eq('date', date)
+    );
+  }
+
+  listStudentAttendanceHistory(studentId: string): Promise<StudentAttendance[]> {
+    return this.run<StudentAttendance[]>(() =>
+      this.supabase.client
+        .from('student_attendance')
+        .select('*, student:students(*)')
+        .eq('student_id', studentId)
+        .order('date', { ascending: false })
+    );
+  }
+
+  async saveStudentAttendance(records: Array<{ student_id: string; batch_id: string; date: string; status: AttendanceStatus }>): Promise<void> {
+    await this.run(() => this.supabase.client.from('student_attendance').upsert(records, { onConflict: 'student_id,batch_id,date' }));
+  }
+
+  listCoachAttendance(date: string): Promise<CoachAttendance[]> {
+    return this.run<CoachAttendance[]>(() =>
+      this.supabase.client.from('coach_attendance').select('*, coach:coaches(*, profile:profiles(name,email))').eq('date', date)
+    );
+  }
+
+  async saveCoachAttendance(records: Array<{ coach_id: string; date: string; status: AttendanceStatus }>): Promise<void> {
+    await this.run(() => this.supabase.client.from('coach_attendance').upsert(records, { onConflict: 'coach_id,date' }));
+  }
+
+  listFees(studentId?: string): Promise<Fee[]> {
+    let query = this.supabase.client.from('fees').select('*').order('paid_date', { ascending: false });
+    if (studentId) query = query.eq('student_id', studentId);
+    return this.run<Fee[]>(() => query);
+  }
+
+  saveFee(fee: Partial<Fee>): Promise<Fee> {
+    return this.upsert<Fee>('fees', fee);
+  }
+
+  listSalaries(coachId?: string): Promise<Salary[]> {
+    let query = this.supabase.client
+      .from('salaries')
+      .select('*, coach:coaches(*, profile:profiles(name,email))')
+      .order('month', { ascending: false });
+    if (coachId) query = query.eq('coach_id', coachId);
+    return this.run<Salary[]>(() => query);
+  }
+
+  generateSalary(coachId: string, month: string, workingDays: number): Promise<string> {
+    return this.run<string>(() => this.supabase.client.rpc('generate_salary', {
+      p_coach_id: coachId,
+      p_month: month,
+      p_working_days: workingDays
+    }));
+  }
+
+  delete(table: Table, id: string): Promise<null> {
+    return this.run<null>(() => this.supabase.client.from(table).delete().eq('id', id));
+  }
+
+  private upsert<T>(table: Table, value: Partial<T>): Promise<T> {
+    return this.run<T>(() => this.supabase.client.from(table).upsert(value as any).select().single());
+  }
+}
