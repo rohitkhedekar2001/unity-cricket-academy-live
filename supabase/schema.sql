@@ -359,6 +359,26 @@ using (
   )
 );
 create policy "Admins manage fees" on public.fees for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "Assigned coaches insert fees" on public.fees for insert to authenticated
+with check (
+  exists (
+    select 1 from public.students s
+    where s.id = fees.student_id and public.is_assigned_coach_for_batch(s.batch_id)
+  )
+);
+create policy "Assigned coaches update own student fees" on public.fees for update to authenticated
+using (
+  exists (
+    select 1 from public.students s
+    where s.id = fees.student_id and public.is_assigned_coach_for_batch(s.batch_id)
+  )
+)
+with check (
+  exists (
+    select 1 from public.students s
+    where s.id = fees.student_id and public.is_assigned_coach_for_batch(s.batch_id)
+  )
+);
 
 create policy "Salaries readable by admin or owning coach" on public.salaries for select to authenticated
 using (

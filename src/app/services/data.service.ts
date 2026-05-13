@@ -132,6 +132,16 @@ export class DataService {
     );
   }
 
+  listMyBatches(): Promise<Batch[]> {
+    if (this.auth.isAdmin()) return this.listBatches();
+    return this.run<Batch[]>(() =>
+      this.supabase.client
+        .from('batches')
+        .select('*, coach:coaches(id,user_id,designation,profile:profiles(name,email)), students(id,name,is_active)')
+        .order('name')
+    );
+  }
+
   saveBatch(batch: Partial<Batch>): Promise<Batch> {
     return this.upsert<Batch>('batches', batch);
   }
