@@ -5,15 +5,16 @@ import { Batch, feePackages, FeePackage, Fee, Student } from '../models/app.mode
 import { DataService } from '../services/data.service';
 import { AuthService } from '../services/auth.service';
 import { ToastService } from '../services/toast.service';
+import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DeleteConfirmComponent],
   template: `
     <section class="space-y-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><h2 class="text-2xl font-black">Fees</h2><p class="text-sm text-neutral-500">{{ auth.isAdmin() ? 'Record payments and view academy fee history.' : 'Record payments for students assigned to your batches.' }}</p></div><button class="btn-primary" (click)="openForm()">Add fee</button></div>
       <section class="panel overflow-hidden">
-        <table class="w-full min-w-[760px] text-left text-sm"><thead class="bg-neutral-950 text-white"><tr><th class="p-3">Student</th><th>Month</th><th>Plan</th><th>Paid date</th><th class="text-right">Amount</th><th class="pr-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-neutral-100"><tr *ngIf="fees().length === 0"><td colspan="6" class="p-4 text-center font-semibold text-neutral-500">No fee records found.</td></tr><tr *ngFor="let fee of fees()" class="transition hover:bg-orange-50/40"><td class="p-3 font-bold">{{ studentName(fee.student_id) }}</td><td>{{ fee.month }}</td><td>{{ fee.fee_plan_name }}</td><td>{{ fee.paid_date }}</td><td class="text-right font-bold text-academy-red">{{ money(fee.amount) }}</td><td class="pr-3 text-right"><button class="btn-secondary !px-3" (click)="openForm(fee)">Edit</button></td></tr></tbody></table>
+        <table class="w-full min-w-[820px] text-left text-sm"><thead class="bg-neutral-950 text-white"><tr><th class="p-3">Student</th><th>Month</th><th>Plan</th><th>Paid date</th><th class="text-right">Amount</th><th class="pr-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-neutral-100"><tr *ngIf="fees().length === 0"><td colspan="6" class="p-4 text-center font-semibold text-neutral-500">No fee records found.</td></tr><tr *ngFor="let fee of fees()" class="transition hover:bg-orange-50/40"><td class="p-3 font-bold">{{ studentName(fee.student_id) }}</td><td>{{ fee.month }}</td><td>{{ fee.fee_plan_name }}</td><td>{{ fee.paid_date }}</td><td class="text-right font-bold text-academy-red">{{ money(fee.amount) }}</td><td class="space-x-2 pr-3 text-right"><button class="btn-secondary !px-3" (click)="openForm(fee)">Edit</button><button *ngIf="auth.isAdmin()" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(fee)">Delete</button></td></tr></tbody></table>
       </section>
     </section>
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4">
@@ -31,6 +32,7 @@ import { ToastService } from '../services/toast.service';
         <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save fee' }}</button></div>
       </form>
     </div>
+    <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteLabel()" (cancel)="deleteTarget.set(null)" (confirm)="removeFee()"></app-delete-confirm>
   `
 })
 export class FeesComponent implements OnInit {
@@ -43,12 +45,14 @@ export class FeesComponent implements OnInit {
   readonly batches = signal<Batch[]>([]);
   readonly formOpen = signal(false);
   readonly saving = signal(false);
+  readonly deleting = signal(false);
   readonly formError = signal('');
+  readonly deleteTarget = signal<Fee | null>(null);
   readonly feePackages = feePackages;
   readonly feeKeys = Object.keys(feePackages) as FeePackage[];
   readonly form = this.fb.group({ id: [''], batch_id: ['', Validators.required], student_id: ['', Validators.required], fee_package: ['Monthly1800' as FeePackage], amount: [1800, Validators.required], fee_plan_name: ['Monthly'], fee_plan_amount: [1800], month: [new Date().toISOString().slice(0, 7), Validators.required], paid_date: [new Date().toISOString().slice(0, 10), Validators.required] });
   async ngOnInit(): Promise<void> {
-    const [students, batches, fees] = await Promise.all([this.data.listStudents(), this.data.listMyBatches(), this.data.listFees()]);
+    const [students, batches, fees] = await Promise.all([this.data.listStudents('', 'active'), this.data.listMyBatches(), this.data.listFees()]);
     this.students.set(students);
     this.batches.set(batches);
     this.fees.set(fees);
@@ -90,6 +94,26 @@ export class FeesComponent implements OnInit {
       this.toast.error(message);
     } finally {
       this.saving.set(false);
+    }
+  }
+  askDelete(fee: Fee): void { this.deleteTarget.set(fee); }
+  deleteLabel(): string {
+    const fee = this.deleteTarget();
+    return fee ? `fee record for ${this.studentName(fee.student_id)} (${fee.month})` : 'fee record';
+  }
+  async removeFee(): Promise<void> {
+    const fee = this.deleteTarget();
+    if (!fee || !this.auth.isAdmin()) return;
+    this.deleting.set(true);
+    try {
+      await this.data.delete('fees', fee.id);
+      this.deleteTarget.set(null);
+      this.fees.set(await this.data.listFees());
+      this.toast.success('Fee record deleted successfully.');
+    } catch (err) {
+      this.toast.error(err instanceof Error ? err.message : 'Unable to delete fee record.');
+    } finally {
+      this.deleting.set(false);
     }
   }
   studentName(id: string): string { return this.students().find((student) => student.id === id)?.name ?? 'Student'; }

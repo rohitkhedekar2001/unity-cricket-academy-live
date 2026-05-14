@@ -88,6 +88,10 @@ $$;
 
 drop policy if exists "Assigned coaches insert fees" on public.fees;
 drop policy if exists "Assigned coaches update own student fees" on public.fees;
+drop policy if exists "Assigned coaches insert students" on public.students;
+
+create policy "Assigned coaches insert students" on public.students for insert to authenticated
+with check (public.is_assigned_coach_for_batch(batch_id));
 
 create policy "Assigned coaches insert fees" on public.fees for insert to authenticated
 with check (

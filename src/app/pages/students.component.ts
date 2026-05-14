@@ -16,17 +16,27 @@ import { ToastService } from '../services/toast.service';
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 class="text-2xl font-black">Students</h2>
-          <p class="text-sm text-neutral-500">Search, add, edit, and manage active status.</p>
+          <p class="text-sm text-neutral-500">{{ auth.isAdmin() ? 'Search, filter, add, edit, and manage active status.' : 'Add and manage students assigned to your batches.' }}</p>
         </div>
-        <button *ngIf="auth.isAdmin()" class="btn-primary" (click)="openForm()">Add student</button>
+        <button class="btn-primary" [disabled]="!auth.isAdmin() && batches().length === 0" (click)="openForm()">Add student</button>
       </div>
 
       <div class="panel p-4">
-        <div class="grid gap-3 md:grid-cols-[1fr_180px]">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <input class="form-input" placeholder="Search students" [value]="search()" (input)="search.set($any($event.target).value); load()">
           <select class="form-input" [value]="activeFilter()" (change)="activeFilter.set($any($event.target).value); load()">
             <option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option>
           </select>
+          <select *ngIf="auth.isAdmin()" class="form-input" [value]="batchFilter()" (change)="batchFilter.set($any($event.target).value); load()">
+            <option value="">All batches</option>
+            <option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option>
+          </select>
+          <input *ngIf="auth.isAdmin()" class="form-input" placeholder="Age" type="number" min="3" [value]="ageFilter() ?? ''" (input)="setAgeFilter($any($event.target).value)">
+          <select *ngIf="auth.isAdmin()" class="form-input" [value]="feeFilter()" (change)="feeFilter.set($any($event.target).value); load()">
+            <option value="">All fee plans</option>
+            <option *ngFor="let key of feeKeys" [value]="key">{{ feePackages[key].label }}</option>
+          </select>
+          <button *ngIf="auth.isAdmin()" type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
         </div>
       </div>
 
@@ -44,7 +54,7 @@ import { ToastService } from '../services/toast.service';
               <td><span class="badge" [class.bg-green-100]="student.is_active" [class.text-green-800]="student.is_active" [class.bg-neutral-100]="!student.is_active">{{ student.is_active ? 'Active' : 'Inactive' }}</span></td>
               <td class="space-x-2 pr-3 text-right">
                 <button class="btn-secondary !px-3" (click)="openForm(student)">Edit</button>
-                <button class="btn-secondary !px-3" (click)="toggleActive(student)">{{ student.is_active ? 'Deactivate' : 'Activate' }}</button>
+                <button class="btn-secondary !px-3" [disabled]="togglingId() === student.id" (click)="toggleActive(student)">{{ togglingId() === student.id ? 'Saving...' : (student.is_active ? 'Deactivate' : 'Activate') }}</button>
                 <button *ngIf="auth.isAdmin()" class="btn-danger !px-3" (click)="askDelete(student)">Delete</button>
               </td>
             </tr>
@@ -67,7 +77,7 @@ import { ToastService } from '../services/toast.service';
           <label><span class="form-label">Admission date</span><input class="form-input mt-1" type="date" formControlName="admission_date"></label>
           <label><span class="form-label">School</span><input class="form-input mt-1" formControlName="school_name"></label>
           <label><span class="form-label">Age group</span><input class="form-input mt-1" formControlName="age_group"></label>
-          <label><span class="form-label">Batch</span><select class="form-input mt-1" formControlName="batch_id"><option [ngValue]="null">Unassigned</option><option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option></select></label>
+          <label><span class="form-label">Batch</span><select class="form-input mt-1" [class.border-red-500]="invalid('batch_id')" formControlName="batch_id"><option *ngIf="auth.isAdmin()" [ngValue]="null">Unassigned</option><option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option></select><small *ngIf="invalid('batch_id')" class="text-xs font-semibold text-red-600">Batch is required for coaches.</small></label>
           <label><span class="form-label">Fee package</span><select class="form-input mt-1" formControlName="fee_package" (change)="syncFee()"><option *ngFor="let key of feeKeys" [value]="key">{{ feePackages[key].label }} &middot; {{ money(feePackages[key].amount) }}</option></select></label>
           <label><span class="form-label">Fee amount</span><input class="form-input mt-1" type="number" formControlName="fee_plan_amount"></label>
           <label class="md:col-span-2"><span class="form-label">Address</span><textarea class="form-input mt-1" formControlName="address" rows="3"></textarea></label>
@@ -92,10 +102,14 @@ export class StudentsComponent implements OnInit {
   readonly batches = signal<Batch[]>([]);
   readonly formOpen = signal(false);
   readonly saving = signal(false);
+  readonly togglingId = signal<string | null>(null);
   readonly formError = signal('');
   readonly deleteTarget = signal<Student | null>(null);
   readonly search = signal('');
   readonly activeFilter = signal<'all' | 'active' | 'inactive'>('all');
+  readonly batchFilter = signal('');
+  readonly ageFilter = signal<number | null>(null);
+  readonly feeFilter = signal('');
   readonly feePackages = feePackages;
   readonly feeKeys = Object.keys(feePackages) as FeePackage[];
   readonly form = this.fb.group({
@@ -116,11 +130,16 @@ export class StudentsComponent implements OnInit {
   });
 
   async ngOnInit(): Promise<void> {
-    await Promise.all([this.load(), this.data.listBatches().then((rows) => this.batches.set(rows))]);
+    await this.data.listMyBatches().then((rows) => this.batches.set(rows));
+    await this.load();
   }
 
   load(): Promise<void> {
-    return this.data.listStudents(this.search(), this.activeFilter()).then((rows) => this.students.set(rows));
+    return this.data.listStudents(this.search(), this.activeFilter(), {
+      batchId: this.auth.isAdmin() ? this.batchFilter() : undefined,
+      age: this.auth.isAdmin() ? this.ageFilter() : null,
+      feePackage: this.auth.isAdmin() ? this.feeFilter() : undefined
+    }).then((rows) => this.students.set(rows));
   }
 
   openForm(student?: Student): void {
@@ -137,9 +156,10 @@ export class StudentsComponent implements OnInit {
       fee_plan_amount: student?.fee_plan_amount ?? 1800,
       school_name: student?.school_name ?? '',
       age_group: student?.age_group ?? '',
-      batch_id: student?.batch_id ?? null,
+      batch_id: student?.batch_id ?? (this.auth.isAdmin() ? null : this.batches()[0]?.id ?? null),
       is_active: student?.is_active ?? true
     });
+    this.applyCoachBatchValidator();
     this.formError.set('');
     this.formOpen.set(true);
   }
@@ -151,6 +171,7 @@ export class StudentsComponent implements OnInit {
 
   async save(): Promise<void> {
     this.form.markAllAsTouched();
+    this.applyCoachBatchValidator();
     if (this.form.invalid || this.hasDuplicate()) return;
     const value = this.form.getRawValue();
     this.saving.set(true);
@@ -169,8 +190,16 @@ export class StudentsComponent implements OnInit {
   }
 
   async toggleActive(student: Student): Promise<void> {
-    await this.data.saveStudent({ id: student.id, is_active: !student.is_active });
-    await this.load();
+    this.togglingId.set(student.id);
+    try {
+      await this.data.updateStudentActiveStatus(student.id, !student.is_active);
+      await this.load();
+      this.toast.success(student.is_active ? 'Student deactivated.' : 'Student reactivated.');
+    } catch (err) {
+      this.toast.error(err instanceof Error ? err.message : 'Unable to update student status.');
+    } finally {
+      this.togglingId.set(null);
+    }
   }
 
   askDelete(student: Student): void {
@@ -187,6 +216,20 @@ export class StudentsComponent implements OnInit {
 
   money(value: number): string {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0);
+  }
+
+  setAgeFilter(value: string): void {
+    this.ageFilter.set(value ? Number(value) : null);
+    void this.load();
+  }
+
+  clearFilters(): void {
+    this.search.set('');
+    this.activeFilter.set('all');
+    this.batchFilter.set('');
+    this.ageFilter.set(null);
+    this.feeFilter.set('');
+    void this.load();
   }
 
   invalid(name: string): boolean {
@@ -212,5 +255,16 @@ export class StudentsComponent implements OnInit {
 
   notFutureDate(control: { value: string | null }) {
     return control.value && control.value > new Date().toISOString().slice(0, 10) ? { futureDate: true } : null;
+  }
+
+  private applyCoachBatchValidator(): void {
+    const batchControl = this.form.get('batch_id');
+    if (!batchControl) return;
+    if (this.auth.isAdmin()) {
+      batchControl.clearValidators();
+    } else {
+      batchControl.setValidators([Validators.required]);
+    }
+    batchControl.updateValueAndValidity({ emitEvent: false });
   }
 }

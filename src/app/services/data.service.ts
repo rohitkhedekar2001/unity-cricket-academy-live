@@ -28,13 +28,20 @@ export class DataService {
     return data as T;
   }
 
-  listStudents(search = '', active: 'all' | 'active' | 'inactive' = 'all'): Promise<Student[]> {
+  listStudents(
+    search = '',
+    active: 'all' | 'active' | 'inactive' = 'all',
+    filters: { batchId?: string; age?: number | null; feePackage?: string } = {}
+  ): Promise<Student[]> {
     let query = this.supabase.client
       .from('students')
       .select('*, batch:batches(id,name,timing,coach_id)')
       .order('name');
     if (search.trim()) query = query.ilike('name', `%${search.trim()}%`);
     if (active !== 'all') query = query.eq('is_active', active === 'active');
+    if (filters.batchId) query = query.eq('batch_id', filters.batchId);
+    if (filters.age !== undefined && filters.age !== null) query = query.eq('age', filters.age);
+    if (filters.feePackage) query = query.eq('fee_package', filters.feePackage);
     return this.run<Student[]>(() => query);
   }
 
@@ -46,6 +53,17 @@ export class DataService {
 
   saveStudent(student: Partial<Student>): Promise<Student> {
     return this.upsert<Student>('students', student);
+  }
+
+  updateStudentActiveStatus(id: string, isActive: boolean): Promise<Student> {
+    return this.run<Student>(() =>
+      this.supabase.client
+        .from('students')
+        .update({ is_active: isActive })
+        .eq('id', id)
+        .select('*, batch:batches(id,name,timing,coach_id)')
+        .single()
+    );
   }
 
   listCoaches(): Promise<Coach[]> {

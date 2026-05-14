@@ -339,6 +339,8 @@ create policy "Admins manage batches" on public.batches for all to authenticated
 create policy "Students readable by admin or assigned coach" on public.students for select to authenticated
 using (public.is_admin() or public.is_assigned_coach_for_batch(batch_id));
 create policy "Admins manage students" on public.students for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "Assigned coaches insert students" on public.students for insert to authenticated
+with check (public.is_assigned_coach_for_batch(batch_id));
 create policy "Assigned coaches update students" on public.students for update to authenticated
 using (public.is_assigned_coach_for_batch(batch_id))
 with check (public.is_assigned_coach_for_batch(batch_id));
