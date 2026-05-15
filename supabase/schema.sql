@@ -200,6 +200,89 @@ begin
 end;
 $$;
 
+create or replace function public.create_assigned_batch_student(
+  p_name text,
+  p_age int,
+  p_date_of_birth date,
+  p_admission_date date,
+  p_address text,
+  p_phone_number text,
+  p_fee_package text,
+  p_fee_plan_name text,
+  p_fee_plan_amount int,
+  p_school_name text,
+  p_age_group text,
+  p_batch_id uuid,
+  p_is_active boolean default true
+)
+returns public.students
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inserted_student public.students;
+begin
+  if p_batch_id is null then
+    raise exception 'Batch is required';
+  end if;
+
+  if not (public.is_admin() or public.is_assigned_coach_for_batch(p_batch_id)) then
+    raise exception 'You can add students only to your assigned batch';
+  end if;
+
+  insert into public.students (
+    name,
+    age,
+    date_of_birth,
+    admission_date,
+    address,
+    phone_number,
+    fee_package,
+    fee_plan_name,
+    fee_plan_amount,
+    school_name,
+    age_group,
+    batch_id,
+    is_active
+  )
+  values (
+    trim(p_name),
+    p_age,
+    p_date_of_birth,
+    p_admission_date,
+    nullif(trim(coalesce(p_address, '')), ''),
+    nullif(trim(coalesce(p_phone_number, '')), ''),
+    p_fee_package,
+    p_fee_plan_name,
+    p_fee_plan_amount,
+    nullif(trim(coalesce(p_school_name, '')), ''),
+    nullif(trim(coalesce(p_age_group, '')), ''),
+    p_batch_id,
+    coalesce(p_is_active, true)
+  )
+  returning * into inserted_student;
+
+  return inserted_student;
+end;
+$$;
+
+grant execute on function public.create_assigned_batch_student(
+  text,
+  int,
+  date,
+  date,
+  text,
+  text,
+  text,
+  text,
+  int,
+  text,
+  text,
+  uuid,
+  boolean
+) to authenticated;
+
 create or replace function public.generate_salary(p_coach_id uuid, p_month text, p_working_days int default 26)
 returns uuid
 language plpgsql

@@ -52,7 +52,30 @@ export class DataService {
   }
 
   saveStudent(student: Partial<Student>): Promise<Student> {
+    if (!student.id && !this.auth.isAdmin()) {
+      return this.createAssignedBatchStudent(student);
+    }
     return this.upsert<Student>('students', student);
+  }
+
+  private createAssignedBatchStudent(student: Partial<Student>): Promise<Student> {
+    return this.run<Student>(() =>
+      this.supabase.client.rpc('create_assigned_batch_student', {
+        p_name: student.name,
+        p_age: student.age,
+        p_date_of_birth: student.date_of_birth || null,
+        p_admission_date: student.admission_date,
+        p_address: student.address || null,
+        p_phone_number: student.phone_number || null,
+        p_fee_package: student.fee_package,
+        p_fee_plan_name: student.fee_plan_name,
+        p_fee_plan_amount: student.fee_plan_amount,
+        p_school_name: student.school_name || null,
+        p_age_group: student.age_group || null,
+        p_batch_id: student.batch_id,
+        p_is_active: student.is_active ?? true
+      })
+    );
   }
 
   updateStudentActiveStatus(id: string, isActive: boolean): Promise<Student> {
