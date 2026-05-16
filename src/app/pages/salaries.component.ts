@@ -71,7 +71,7 @@ interface SalarySummary {
       </form>
 
       <section class="panel overflow-hidden">
-        <div class="divide-y divide-neutral-100 xl:hidden">
+        <div class="divide-y divide-neutral-100 2xl:hidden">
           <p *ngIf="salaries().length === 0" class="p-4 text-center font-semibold text-neutral-500">No salary records found.</p>
           <article *ngFor="let salary of salaries()" class="space-y-4 p-4">
             <div class="flex items-start justify-between gap-3">
@@ -95,7 +95,7 @@ interface SalarySummary {
           </article>
         </div>
 
-        <table class="hidden w-full min-w-[1100px] text-left text-sm xl:table">
+        <table class="hidden w-full min-w-[1100px] text-left text-sm 2xl:table">
           <thead class="bg-neutral-950 text-white">
             <tr><th class="p-3">Coach</th><th>Month</th><th>Working Days</th><th>Leaves</th><th>Paid Leave</th><th>Base</th><th>Additions</th><th>Deductions</th><th class="text-right">Final Payable</th><th class="text-right pr-3">Action</th></tr>
           </thead>
