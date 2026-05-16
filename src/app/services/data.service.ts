@@ -63,6 +63,7 @@ export class DataService {
       this.supabase.client.rpc('create_assigned_batch_student', {
         p_name: student.name,
         p_age: student.age,
+        p_dob: student.dob || student.date_of_birth || null,
         p_date_of_birth: student.date_of_birth || null,
         p_admission_date: student.admission_date,
         p_address: student.address || null,

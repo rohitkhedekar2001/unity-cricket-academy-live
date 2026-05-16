@@ -72,8 +72,8 @@ import { ToastService } from '../services/toast.service';
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <label><span class="form-label">Name</span><input class="form-input mt-1" [class.border-red-500]="invalid('name')" formControlName="name"><small *ngIf="invalid('name')" class="text-xs font-semibold text-red-600">Student name is required.</small></label>
           <label><span class="form-label">Phone</span><input class="form-input mt-1" [class.border-red-500]="invalid('phone_number')" formControlName="phone_number"><small *ngIf="invalid('phone_number')" class="text-xs font-semibold text-red-600">Please enter valid mobile number.</small></label>
-          <label><span class="form-label">Age</span><input class="form-input mt-1" type="number" formControlName="age"></label>
-          <label><span class="form-label">Date of birth</span><input class="form-input mt-1" [class.border-red-500]="invalid('date_of_birth')" type="date" formControlName="date_of_birth"><small *ngIf="invalid('date_of_birth')" class="text-xs font-semibold text-red-600">Future DOB is not allowed.</small></label>
+          <label><span class="form-label">Date of birth</span><input class="form-input mt-1" [class.border-red-500]="invalid('dob')" type="date" formControlName="dob"><small *ngIf="invalid('dob')" class="text-xs font-semibold text-red-600">{{ form.get('dob')?.hasError('required') ? 'Date of birth is required.' : 'Future DOB is not allowed.' }}</small></label>
+          <label><span class="form-label">Age</span><input class="form-input mt-1 bg-neutral-100 text-neutral-700" type="number" formControlName="age" readonly></label>
           <label><span class="form-label">Admission date</span><input class="form-input mt-1" type="date" formControlName="admission_date"></label>
           <label><span class="form-label">School</span><input class="form-input mt-1" formControlName="school_name"></label>
           <label><span class="form-label">Age group</span><input class="form-input mt-1" formControlName="age_group"></label>
@@ -115,8 +115,9 @@ export class StudentsComponent implements OnInit {
   readonly form = this.fb.group({
     id: [''],
     name: ['', Validators.required],
-    age: [10, [Validators.required, Validators.min(3)]],
-    date_of_birth: ['', [this.notFutureDate]],
+    dob: ['', [Validators.required, this.notFutureDate]],
+    age: [{ value: 0, disabled: true }, [Validators.required, Validators.min(0)]],
+    date_of_birth: [''],
     admission_date: [new Date().toISOString().slice(0, 10), Validators.required],
     address: [''],
     phone_number: ['', [Validators.pattern(/^[6-9]\d{9}$/)]],
@@ -130,6 +131,7 @@ export class StudentsComponent implements OnInit {
   });
 
   async ngOnInit(): Promise<void> {
+    this.form.get('dob')?.valueChanges.subscribe((dob) => this.updateAgeFromDob(dob || ''));
     await this.data.listMyBatches().then((rows) => this.batches.set(rows));
     await this.load();
   }
@@ -146,8 +148,9 @@ export class StudentsComponent implements OnInit {
     this.form.reset({
       id: student?.id ?? '',
       name: student?.name ?? '',
-      age: student?.age ?? 10,
-      date_of_birth: student?.date_of_birth ?? '',
+      dob: student?.dob ?? student?.date_of_birth ?? '',
+      age: student?.age ?? 0,
+      date_of_birth: student?.date_of_birth ?? student?.dob ?? '',
       admission_date: student?.admission_date ?? new Date().toISOString().slice(0, 10),
       address: student?.address ?? '',
       phone_number: student?.phone_number ?? '',
@@ -159,6 +162,7 @@ export class StudentsComponent implements OnInit {
       batch_id: student?.batch_id ?? (this.auth.isAdmin() ? null : this.batches()[0]?.id ?? null),
       is_active: student?.is_active ?? true
     });
+    this.updateAgeFromDob(this.form.get('dob')?.value || '', student?.age ?? 0);
     this.applyCoachBatchValidator();
     this.formError.set('');
     this.formOpen.set(true);
@@ -174,6 +178,7 @@ export class StudentsComponent implements OnInit {
     this.applyCoachBatchValidator();
     if (this.form.invalid || this.hasDuplicate()) return;
     const value = this.form.getRawValue();
+    value.date_of_birth = value.dob;
     this.saving.set(true);
     try {
       await this.data.saveStudent({ ...value, id: value.id || undefined } as Partial<Student>);
@@ -255,6 +260,22 @@ export class StudentsComponent implements OnInit {
 
   notFutureDate(control: { value: string | null }) {
     return control.value && control.value > new Date().toISOString().slice(0, 10) ? { futureDate: true } : null;
+  }
+
+  private updateAgeFromDob(dob: string, fallbackAge = 0): void {
+    const age = dob ? this.calculateAge(dob) : fallbackAge;
+    this.form.get('age')?.setValue(age, { emitEvent: false });
+  }
+
+  private calculateAge(dob: string): number {
+    const birthDate = new Date(`${dob}T00:00:00`);
+    if (Number.isNaN(birthDate.getTime())) return 0;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    const hasBirthdayPassed = monthDifference > 0 || (monthDifference === 0 && today.getDate() >= birthDate.getDate());
+    if (!hasBirthdayPassed) age -= 1;
+    return Math.max(age, 0);
   }
 
   private applyCoachBatchValidator(): void {

@@ -37,6 +37,7 @@ export interface Student {
   id: string;
   name: string;
   age: number;
+  dob: string | null;
   date_of_birth: string | null;
   admission_date: string;
   address: string | null;

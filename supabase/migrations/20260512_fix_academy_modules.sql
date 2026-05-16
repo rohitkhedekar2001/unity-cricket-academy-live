@@ -4,6 +4,13 @@
 alter table public.fees
 add column if not exists fee_package text not null default 'Monthly1800';
 
+alter table public.students
+add column if not exists dob date;
+
+update public.students
+set dob = date_of_birth
+where dob is null and date_of_birth is not null;
+
 do $$
 begin
   if not exists (
@@ -118,6 +125,7 @@ with check (
 create or replace function public.create_assigned_batch_student(
   p_name text,
   p_age int,
+  p_dob date,
   p_date_of_birth date,
   p_admission_date date,
   p_address text,
@@ -149,6 +157,7 @@ begin
   insert into public.students (
     name,
     age,
+    dob,
     date_of_birth,
     admission_date,
     address,
@@ -164,7 +173,8 @@ begin
   values (
     trim(p_name),
     p_age,
-    p_date_of_birth,
+    coalesce(p_dob, p_date_of_birth),
+    coalesce(p_date_of_birth, p_dob),
     p_admission_date,
     nullif(trim(coalesce(p_address, '')), ''),
     nullif(trim(coalesce(p_phone_number, '')), ''),
@@ -185,6 +195,7 @@ $$;
 grant execute on function public.create_assigned_batch_student(
   text,
   int,
+  date,
   date,
   date,
   text,

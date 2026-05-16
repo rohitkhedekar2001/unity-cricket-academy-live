@@ -32,6 +32,7 @@ create table if not exists public.students (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   age int not null check (age between 3 and 80),
+  dob date,
   date_of_birth date,
   admission_date date not null default current_date,
   address text,
@@ -203,6 +204,7 @@ $$;
 create or replace function public.create_assigned_batch_student(
   p_name text,
   p_age int,
+  p_dob date,
   p_date_of_birth date,
   p_admission_date date,
   p_address text,
@@ -234,6 +236,7 @@ begin
   insert into public.students (
     name,
     age,
+    dob,
     date_of_birth,
     admission_date,
     address,
@@ -249,7 +252,8 @@ begin
   values (
     trim(p_name),
     p_age,
-    p_date_of_birth,
+    coalesce(p_dob, p_date_of_birth),
+    coalesce(p_date_of_birth, p_dob),
     p_admission_date,
     nullif(trim(coalesce(p_address, '')), ''),
     nullif(trim(coalesce(p_phone_number, '')), ''),
@@ -270,6 +274,7 @@ $$;
 grant execute on function public.create_assigned_batch_student(
   text,
   int,
+  date,
   date,
   date,
   text,
