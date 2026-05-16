@@ -1,11 +1,6 @@
 export type Role = 'Admin' | 'Coach';
 export type AttendanceStatus = 'Present' | 'Absent';
-export type CoachDesignation =
-  | 'HeadCoach'
-  | 'SeniorCoach'
-  | 'AssistantCoachLevel3'
-  | 'AssistantCoachLevel2'
-  | 'AssistantCoachLevel1';
+export type CoachDesignation = string;
 export type FeePackage =
   | 'Monthly1800'
   | 'MonthlySummerCamp2500'
@@ -30,6 +25,7 @@ export interface Coach {
   phone_number: string | null;
   date_of_birth: string | null;
   designation: CoachDesignation;
+  is_active: boolean;
   profile?: Profile | null;
 }
 
@@ -100,6 +96,17 @@ export interface Salary {
   leaves: number;
   deduction: number;
   final_salary: number;
+  working_days: number;
+  paid_leave: number;
+  leave_taken: number;
+  leave_deduction: number;
+  base_salary: number;
+  personal_coaching_count: number;
+  personal_coaching_amount: number;
+  bonus: number;
+  penalty_amount: number;
+  advance_taken: number;
+  grand_total_salary: number;
   coach?: Coach;
 }
 
@@ -112,10 +119,13 @@ export const feePackages: Record<FeePackage, { label: string; amount: number }> 
   Personal5000: { label: 'Personal Coaching', amount: 5000 }
 };
 
-export const coachDesignations: CoachDesignation[] = [
+export const coachDesignations: string[] = [
   'HeadCoach',
   'SeniorCoach',
   'AssistantCoachLevel3',
   'AssistantCoachLevel2',
-  'AssistantCoachLevel1'
+  'AssistantCoachLevel1',
+  'Marker',
+  'AssistantCoachLevel4',
+  'AssistantCoachLevel5'
 ];

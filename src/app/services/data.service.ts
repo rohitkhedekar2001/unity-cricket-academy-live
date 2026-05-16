@@ -90,7 +90,16 @@ export class DataService {
     );
   }
 
-  listCoaches(): Promise<Coach[]> {
+  listCoaches(active: 'all' | 'active' | 'inactive' = 'active'): Promise<Coach[]> {
+    let query = this.supabase.client
+      .from('coaches')
+      .select('*, profile:profiles(id,name,email,role)')
+      .order('designation');
+    if (active !== 'all') query = query.eq('is_active', active === 'active');
+    return this.run<Coach[]>(() => query);
+  }
+
+  listAllCoaches(): Promise<Coach[]> {
     return this.run<Coach[]>(() =>
       this.supabase.client
         .from('coaches')
@@ -102,6 +111,17 @@ export class DataService {
   getCoach(id: string): Promise<Coach> {
     return this.run<Coach>(() =>
       this.supabase.client.from('coaches').select('*, profile:profiles(*)').eq('id', id).single()
+    );
+  }
+
+  updateCoachActiveStatus(id: string, isActive: boolean): Promise<Coach> {
+    return this.run<Coach>(() =>
+      this.supabase.client
+        .from('coaches')
+        .update({ is_active: isActive })
+        .eq('id', id)
+        .select('*, profile:profiles(id,name,email,role)')
+        .single()
     );
   }
 
@@ -218,6 +238,16 @@ export class DataService {
     );
   }
 
+  listCoachAttendanceHistory(coachId: string): Promise<CoachAttendance[]> {
+    return this.run<CoachAttendance[]>(() =>
+      this.supabase.client
+        .from('coach_attendance')
+        .select('*, coach:coaches(*, profile:profiles(name,email))')
+        .eq('coach_id', coachId)
+        .order('date', { ascending: false })
+    );
+  }
+
   async saveCoachAttendance(records: Array<{ coach_id: string; date: string; status: AttendanceStatus }>): Promise<void> {
     await this.run(() => this.supabase.client.from('coach_attendance').upsert(records, { onConflict: 'coach_id,date' }));
   }
@@ -241,11 +271,41 @@ export class DataService {
     return this.run<Salary[]>(() => query);
   }
 
-  generateSalary(coachId: string, month: string, workingDays: number): Promise<string> {
+  listCoachAttendanceForMonth(coachId: string, month: string): Promise<CoachAttendance[]> {
+    const startDate = `${month}-01`;
+    const year = Number(month.slice(0, 4));
+    const monthNumber = Number(month.slice(5, 7));
+    const lastDay = new Date(year, monthNumber, 0).getDate();
+    const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+    return this.run<CoachAttendance[]>(() =>
+      this.supabase.client
+        .from('coach_attendance')
+        .select('*, coach:coaches(*, profile:profiles(name,email))')
+        .eq('coach_id', coachId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+    );
+  }
+
+  generateSalary(payload: {
+    coachId: string;
+    month: string;
+    personalCoachingCount: number;
+    personalCoachingAmount: number;
+    bonus: number;
+    penaltyAmount: number;
+    advanceTaken: number;
+    paidLeave: number;
+  }): Promise<string> {
     return this.run<string>(() => this.supabase.client.rpc('generate_salary', {
-      p_coach_id: coachId,
-      p_month: month,
-      p_working_days: workingDays
+      p_coach_id: payload.coachId,
+      p_month: payload.month,
+      p_personal_coaching_count: payload.personalCoachingCount,
+      p_personal_coaching_amount: payload.personalCoachingAmount,
+      p_bonus: payload.bonus,
+      p_penalty_amount: payload.penaltyAmount,
+      p_advance_taken: payload.advanceTaken,
+      p_paid_leave: payload.paidLeave
     }));
   }
 

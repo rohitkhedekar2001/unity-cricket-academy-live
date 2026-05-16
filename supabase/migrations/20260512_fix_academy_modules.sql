@@ -11,6 +11,68 @@ update public.students
 set dob = date_of_birth
 where dob is null and date_of_birth is not null;
 
+alter table public.coaches
+drop constraint if exists coaches_designation_check;
+
+alter table public.coaches
+add column if not exists is_active boolean not null default true;
+
+create index if not exists idx_coaches_active on public.coaches(is_active);
+
+create or replace function public.is_assigned_coach_for_batch(p_batch_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.batches b
+    join public.coaches c on c.id = b.coach_id
+    where b.id = p_batch_id and c.user_id = auth.uid() and c.is_active = true
+  )
+$$;
+
+alter table public.salaries
+add column if not exists working_days int not null default 26,
+add column if not exists paid_leave int not null default 2,
+add column if not exists leave_taken int not null default 0,
+add column if not exists leave_deduction int not null default 0,
+add column if not exists base_salary int not null default 0,
+add column if not exists personal_coaching_count int not null default 0,
+add column if not exists personal_coaching_amount int not null default 0,
+add column if not exists bonus int not null default 0,
+add column if not exists penalty_amount int not null default 0,
+add column if not exists advance_taken int not null default 0,
+add column if not exists grand_total_salary int not null default 0;
+
+update public.salaries
+set working_days = greatest(coalesce(working_days, 26), 1),
+    paid_leave = greatest(coalesce(paid_leave, 2), 0),
+    leave_taken = greatest(coalesce(nullif(leave_taken, 0), leaves, 0), 0),
+    leave_deduction = greatest(coalesce(nullif(leave_deduction, 0), deduction, 0), 0),
+    base_salary = greatest(coalesce(nullif(base_salary, 0), final_salary, 0), 0),
+    grand_total_salary = greatest(coalesce(nullif(grand_total_salary, 0), final_salary, 0), 0);
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'salaries_working_days_positive') then
+    alter table public.salaries add constraint salaries_working_days_positive check (working_days > 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'salaries_paid_leave_nonnegative') then
+    alter table public.salaries add constraint salaries_paid_leave_nonnegative check (paid_leave >= 0);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'salaries_new_amounts_nonnegative') then
+    alter table public.salaries add constraint salaries_new_amounts_nonnegative check (
+      leave_taken >= 0 and leave_deduction >= 0 and base_salary >= 0
+      and personal_coaching_count >= 0 and personal_coaching_amount >= 0
+      and bonus >= 0 and penalty_amount >= 0 and advance_taken >= 0
+      and grand_total_salary >= 0
+    );
+  end if;
+end $$;
+
 do $$
 begin
   if not exists (
@@ -208,3 +270,121 @@ grant execute on function public.create_assigned_batch_student(
   uuid,
   boolean
 ) to authenticated;
+
+create or replace function public.generate_salary(
+  p_coach_id uuid,
+  p_month text,
+  p_personal_coaching_count int default 0,
+  p_personal_coaching_amount int default 0,
+  p_bonus int default 0,
+  p_penalty_amount int default 0,
+  p_advance_taken int default 0,
+  p_paid_leave int default 2
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  fixed_salary int;
+  working_day_count int;
+  leave_count int;
+  extra_leaves int;
+  per_day_salary numeric;
+  deduction_amount int;
+  base_salary_amount int;
+  grand_total_amount int;
+  salary_id uuid;
+  month_start date;
+  month_end date;
+begin
+  if not public.is_admin() then
+    raise exception 'Only admins can generate salaries';
+  end if;
+
+  select salary_per_month into fixed_salary from public.coaches where id = p_coach_id;
+  if fixed_salary is null then
+    raise exception 'Coach not found';
+  end if;
+
+  month_start := to_date(p_month || '-01', 'YYYY-MM-DD');
+  month_end := (month_start + interval '1 month - 1 day')::date;
+
+  select count(*)::int into working_day_count
+  from generate_series(month_start, month_end, interval '1 day') as days(day_value)
+  where extract(dow from day_value) <> 0;
+
+  select count(*)::int into leave_count
+  from public.coach_attendance
+  where coach_id = p_coach_id and to_char(date, 'YYYY-MM') = p_month and status = 'Absent';
+
+  extra_leaves := greatest(leave_count - greatest(coalesce(p_paid_leave, 2), 0), 0);
+  per_day_salary := fixed_salary::numeric / greatest(working_day_count, 1);
+  deduction_amount := round(per_day_salary * extra_leaves)::int;
+  base_salary_amount := greatest(fixed_salary - deduction_amount, 0);
+  grand_total_amount := greatest(
+    base_salary_amount
+    + greatest(coalesce(p_personal_coaching_amount, 0), 0)
+    + greatest(coalesce(p_bonus, 0), 0)
+    - greatest(coalesce(p_penalty_amount, 0), 0)
+    - greatest(coalesce(p_advance_taken, 0), 0),
+    0
+  );
+
+  insert into public.salaries (
+    coach_id,
+    month,
+    leaves,
+    deduction,
+    final_salary,
+    working_days,
+    paid_leave,
+    leave_taken,
+    leave_deduction,
+    base_salary,
+    personal_coaching_count,
+    personal_coaching_amount,
+    bonus,
+    penalty_amount,
+    advance_taken,
+    grand_total_salary
+  )
+  values (
+    p_coach_id,
+    p_month,
+    leave_count,
+    deduction_amount,
+    grand_total_amount,
+    working_day_count,
+    greatest(coalesce(p_paid_leave, 2), 0),
+    leave_count,
+    deduction_amount,
+    base_salary_amount,
+    greatest(coalesce(p_personal_coaching_count, 0), 0),
+    greatest(coalesce(p_personal_coaching_amount, 0), 0),
+    greatest(coalesce(p_bonus, 0), 0),
+    greatest(coalesce(p_penalty_amount, 0), 0),
+    greatest(coalesce(p_advance_taken, 0), 0),
+    grand_total_amount
+  )
+  on conflict (coach_id, month) do update
+  set leaves = excluded.leaves,
+      deduction = excluded.deduction,
+      final_salary = excluded.final_salary,
+      working_days = excluded.working_days,
+      paid_leave = excluded.paid_leave,
+      leave_taken = excluded.leave_taken,
+      leave_deduction = excluded.leave_deduction,
+      base_salary = excluded.base_salary,
+      personal_coaching_count = excluded.personal_coaching_count,
+      personal_coaching_amount = excluded.personal_coaching_amount,
+      bonus = excluded.bonus,
+      penalty_amount = excluded.penalty_amount,
+      advance_taken = excluded.advance_taken,
+      grand_total_salary = excluded.grand_total_salary
+  returning id into salary_id;
+
+  return salary_id;
+end;
+$$;
