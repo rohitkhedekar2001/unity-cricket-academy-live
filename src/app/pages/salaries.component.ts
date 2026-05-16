@@ -71,7 +71,31 @@ interface SalarySummary {
       </form>
 
       <section class="panel overflow-hidden">
-        <table class="w-full min-w-[1100px] text-left text-sm">
+        <div class="divide-y divide-neutral-100 xl:hidden">
+          <p *ngIf="salaries().length === 0" class="p-4 text-center font-semibold text-neutral-500">No salary records found.</p>
+          <article *ngFor="let salary of salaries()" class="space-y-4 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="font-black text-neutral-950">{{ salary.coach?.profile?.name }}</h3>
+                <p class="text-sm font-semibold text-neutral-500">{{ salary.month }}</p>
+              </div>
+              <span class="rounded-lg bg-red-50 px-3 py-2 text-right text-base font-black text-academy-red">{{ money(salary.grand_total_salary || salary.final_salary) }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              <p><span class="form-label block">Working Days</span>{{ salary.working_days || '-' }}</p>
+              <p><span class="form-label block">Leaves</span>{{ salary.leave_taken || salary.leaves }}</p>
+              <p><span class="form-label block">Paid Leave</span>{{ salary.paid_leave || 2 }}</p>
+              <p><span class="form-label block">Base</span>{{ money(salary.base_salary || salary.final_salary) }}</p>
+              <p><span class="form-label block">Additions</span>{{ money((salary.personal_coaching_amount || 0) + (salary.bonus || 0)) }}</p>
+              <p><span class="form-label block">Deductions</span>{{ money((salary.leave_deduction || 0) + (salary.penalty_amount || 0) + (salary.advance_taken || 0)) }}</p>
+            </div>
+            <div class="flex justify-end">
+              <button *ngIf="auth.isAdmin()" class="btn-danger !px-4" [disabled]="deleting()" (click)="askDelete(salary)">Delete</button>
+            </div>
+          </article>
+        </div>
+
+        <table class="hidden w-full min-w-[1100px] text-left text-sm xl:table">
           <thead class="bg-neutral-950 text-white">
             <tr><th class="p-3">Coach</th><th>Month</th><th>Working Days</th><th>Leaves</th><th>Paid Leave</th><th>Base</th><th>Additions</th><th>Deductions</th><th class="text-right">Final Payable</th><th class="text-right pr-3">Action</th></tr>
           </thead>
@@ -81,12 +105,12 @@ interface SalarySummary {
               <td class="p-3 font-bold">{{ salary.coach?.profile?.name }}</td>
               <td>{{ salary.month }}</td>
               <td>{{ salary.working_days || '-' }}</td>
-              <td>{{ salary.leave_taken ?? salary.leaves }}</td>
-              <td>{{ salary.paid_leave ?? 2 }}</td>
-              <td>{{ money(salary.base_salary ?? salary.final_salary) }}</td>
+              <td>{{ salary.leave_taken || salary.leaves }}</td>
+              <td>{{ salary.paid_leave || 2 }}</td>
+              <td>{{ money(salary.base_salary || salary.final_salary) }}</td>
               <td>{{ money((salary.personal_coaching_amount || 0) + (salary.bonus || 0)) }}</td>
-              <td>{{ money((salary.leave_deduction ?? salary.deduction ?? 0) + (salary.penalty_amount || 0) + (salary.advance_taken || 0)) }}</td>
-              <td class="text-right font-bold text-academy-red">{{ money(salary.grand_total_salary ?? salary.final_salary) }}</td>
+              <td>{{ money((salary.leave_deduction || 0) + (salary.penalty_amount || 0) + (salary.advance_taken || 0)) }}</td>
+              <td class="text-right font-bold text-academy-red">{{ money(salary.grand_total_salary || salary.final_salary) }}</td>
               <td class="pr-3 text-right"><button *ngIf="auth.isAdmin()" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(salary)">Delete</button></td>
             </tr>
           </tbody>
