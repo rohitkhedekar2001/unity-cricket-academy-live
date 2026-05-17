@@ -6,13 +6,17 @@ import {
   Batch,
   Coach,
   Fee,
+  AcademyMatch,
+  MatchCoach,
+  MatchNote,
+  MatchPlayer,
   Salary,
   Student,
   StudentAttendance,
   CoachAttendance
 } from '../models/app.models';
 
-type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance';
+type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes';
 
 @Injectable({ providedIn: 'root' })
 export class DataService {
@@ -260,6 +264,49 @@ export class DataService {
 
   saveFee(fee: Partial<Fee>): Promise<Fee> {
     return this.upsert<Fee>('fees', fee);
+  }
+
+  listMatches(): Promise<AcademyMatch[]> {
+    return this.run<AcademyMatch[]>(() =>
+      this.supabase.client
+        .from('matches')
+        .select('*, players:match_players(*, student:students(*, batch:batches(id,name,timing,coach_id)), coach:coaches(*, profile:profiles(name,email))), coaches:match_coaches(*, coach:coaches(*, profile:profiles(name,email))), match_notes(*, profile:profiles(name,email,role))')
+        .order('match_datetime', { ascending: false })
+    );
+  }
+
+  saveMatch(match: Partial<AcademyMatch>): Promise<AcademyMatch> {
+    return this.upsert<AcademyMatch>('matches', match);
+  }
+
+  async saveMatchPlayers(matchId: string, players: Array<Partial<MatchPlayer>>): Promise<void> {
+    await this.run(() => this.supabase.client.from('match_players').delete().eq('match_id', matchId));
+    if (players.length === 0) return;
+    await this.run(() => this.supabase.client.from('match_players').insert(players.map((player) => ({
+      match_id: matchId,
+      student_id: 'student_id' in player ? player.student_id : null,
+      coach_id: 'coach_id' in player ? player.coach_id : null,
+      role: player.role ?? 'Batsman',
+      fee_status: player.fee_status ?? 'Pending',
+      attendance_confirmed: player.attendance_confirmed ?? false
+    }))));
+  }
+
+  async saveMatchCoaches(matchId: string, coaches: string[]): Promise<void> {
+    await this.run(() => this.supabase.client.from('match_coaches').delete().eq('match_id', matchId));
+    const uniqueCoachIds = [...new Set(coaches.filter(Boolean))];
+    if (uniqueCoachIds.length === 0) return;
+    await this.run(() => this.supabase.client.from('match_coaches').insert(uniqueCoachIds.map((coachId) => ({ match_id: matchId, coach_id: coachId }))));
+  }
+
+  async saveMatchPlayer(player: Partial<MatchPlayer>): Promise<MatchPlayer> {
+    if (!player.id) return this.upsert<MatchPlayer>('match_players', player);
+    const { id, ...changes } = player;
+    return this.run<MatchPlayer>(() => this.supabase.client.from('match_players').update(changes).eq('id', id).select().single());
+  }
+
+  async addMatchNote(matchId: string, note: string): Promise<MatchNote> {
+    return this.run<MatchNote>(() => this.supabase.client.from('match_notes').insert({ match_id: matchId, note }).select('*, profile:profiles(name,email,role)').single());
   }
 
   listSalaries(coachId?: string): Promise<Salary[]> {

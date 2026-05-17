@@ -35,11 +35,25 @@ interface FeeStatusRow {
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <input class="form-input" placeholder="Search student" [value]="search()" (input)="search.set($any($event.target).value)">
           <input class="form-input" type="month" [value]="selectedMonth()" (change)="selectedMonth.set($any($event.target).value)">
-          <select *ngIf="auth.isAdmin()" class="form-input" [value]="selectedBatch()" (change)="selectedBatch.set($any($event.target).value)">
-            <option value="">All Batches</option>
+          <select class="form-input" [value]="selectedBatch()" (change)="selectedBatch.set($any($event.target).value)">
+            <option value="">{{ auth.isAdmin() ? 'All Batches' : 'All My Batches' }}</option>
             <option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option>
           </select>
           <button type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
+        </div>
+      </section>
+
+      <section class="panel flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h3 class="font-black text-neutral-950">Monthly Fee Report</h3>
+          <p class="text-sm text-neutral-500">{{ reportBatch() ? 'Download the selected batch fee report with paid and pending students.' : auth.isAdmin() ? 'Download a combined academy fee report for all batches.' : 'Download a combined report for your assigned batches.' }}</p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select class="form-input sm:w-56" [value]="reportBatch()" (change)="reportBatch.set($any($event.target).value)">
+            <option value="">{{ auth.isAdmin() ? 'All Batches' : 'All My Batches' }}</option>
+            <option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option>
+          </select>
+          <button class="btn-primary" type="button" [disabled]="loading() || reportBusy()" (click)="downloadSelectedFeeReport()">{{ reportBusy() ? 'Preparing...' : reportBatch() ? 'Download Batch PDF' : 'Download Combined PDF' }}</button>
         </div>
       </section>
 
@@ -132,10 +146,12 @@ export class FeesComponent implements OnInit {
   readonly formOpen = signal(false);
   readonly saving = signal(false);
   readonly deleting = signal(false);
+  readonly reportBusy = signal(false);
   readonly formError = signal('');
   readonly deleteTarget = signal<Fee | null>(null);
   readonly activeTab = signal<'paid' | 'pending'>('paid');
   readonly selectedBatch = signal('');
+  readonly reportBatch = signal('');
   readonly selectedMonth = signal(new Date().toISOString().slice(0, 7));
   readonly search = signal('');
   readonly feePackages = feePackages;
@@ -146,7 +162,7 @@ export class FeesComponent implements OnInit {
     const batchId = this.selectedBatch();
     const search = this.search().trim().toLowerCase();
     return this.students().filter((student) => {
-      const matchesBatch = !this.auth.isAdmin() || !batchId || student.batch_id === batchId;
+      const matchesBatch = !batchId || student.batch_id === batchId;
       const matchesSearch = !search || student.name.toLowerCase().includes(search);
       return matchesBatch && matchesSearch;
     });
@@ -271,6 +287,7 @@ export class FeesComponent implements OnInit {
   }
   clearFilters(): void {
     this.selectedBatch.set('');
+    this.reportBatch.set('');
     this.search.set('');
     this.selectedMonth.set(new Date().toISOString().slice(0, 7));
   }
@@ -284,4 +301,333 @@ export class FeesComponent implements OnInit {
   }
   money(value: number): string { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0); }
   invalid(name: string): boolean { const control = this.form.get(name); return !!control && control.invalid && (control.touched || control.dirty); }
+
+  async downloadSelectedFeeReport(): Promise<void> {
+    await this.downloadFeeReport(this.reportBatch());
+  }
+
+  private async downloadFeeReport(batchId: string): Promise<void> {
+    const rows = this.reportRows(batchId);
+    if (rows.length === 0) {
+      this.toast.info('No fee data found for the selected report.');
+      return;
+    }
+    this.reportBusy.set(true);
+    try {
+      const month = this.selectedMonth();
+      const batchLabel = batchId ? this.batchName(batchId) : this.auth.isAdmin() ? 'All Batches' : 'Assigned Batches';
+      const logo = await this.loadLogo();
+      const pages = this.renderFeeReportCanvases(month, batchLabel, rows, logo);
+      const pdf = this.createPdfFromCanvases(pages);
+      this.savePdf(pdf, `fee-report-${this.slug(batchLabel)}-${month}.pdf`);
+      this.toast.success('Fee report downloaded successfully.');
+    } catch {
+      this.toast.error('Unable to generate fee report.');
+    } finally {
+      this.reportBusy.set(false);
+    }
+  }
+
+  private reportRows(batchId: string): FeeStatusRow[] {
+    const search = this.search().trim().toLowerCase();
+    const feesForMonth = this.fees().filter((fee) => fee.month === this.selectedMonth());
+    return this.students().filter((student) => {
+      const matchesBatch = !batchId || student.batch_id === batchId;
+      const matchesSearch = !search || student.name.toLowerCase().includes(search);
+      return matchesBatch && matchesSearch;
+    }).map((student): FeeStatusRow => {
+      const fees = feesForMonth.filter((fee) => fee.student_id === student.id);
+      const paidAmount = fees.reduce((total, fee) => total + (fee.amount || 0), 0);
+      const expectedAmount = student.fee_plan_amount || fees[0]?.fee_plan_amount || 0;
+      const pendingAmount = Math.max(expectedAmount - paidAmount, 0);
+      const status: FeeStatusRow['status'] = pendingAmount === 0 && paidAmount > 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Pending';
+      return {
+        student,
+        batchName: this.batchName(student.batch_id),
+        expectedAmount,
+        paidAmount,
+        pendingAmount,
+        paymentDate: fees.map((fee) => fee.paid_date).sort().reverse()[0] ?? '',
+        status,
+        fees
+      };
+    });
+  }
+
+  private async loadLogo(): Promise<HTMLImageElement | null> {
+    return new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = 'assets/logo.png';
+    });
+  }
+
+  private renderFeeReportCanvases(month: string, batchLabel: string, rows: FeeStatusRow[], logo: HTMLImageElement | null): HTMLCanvasElement[] {
+    const pages: HTMLCanvasElement[] = [];
+    let canvas = this.createA4Canvas();
+    let ctx = canvas.getContext('2d')!;
+    let pageNumber = 1;
+    let y = this.startFeeReportPage(ctx, logo, month, batchLabel, rows);
+    const groupedRows = this.groupRowsByBatch(rows);
+
+    const addPage = (): void => {
+      this.footer(ctx, `Page ${pageNumber}`);
+      pages.push(canvas);
+      pageNumber += 1;
+      canvas = this.createA4Canvas();
+      ctx = canvas.getContext('2d')!;
+      y = this.startFeeReportPage(ctx, logo, month, batchLabel, rows);
+    };
+
+    groupedRows.forEach(([batchName, batchRows]) => {
+      const paid = batchRows.filter((row) => row.status === 'Paid');
+      const pending = batchRows.filter((row) => row.status !== 'Paid');
+      if (y + 180 > 985) addPage();
+      y = this.batchReportHeader(ctx, batchName, batchRows, y);
+      this.chunk(paid, 10).forEach((chunk, index) => {
+        if (y + 80 + chunk.length * 48 > 985) addPage();
+        y = this.feeReportSection(ctx, index === 0 ? 'Paid Students' : 'Paid Students (continued)', chunk, y, '#15803d');
+      });
+      if (paid.length === 0) y = this.feeReportSection(ctx, 'Paid Students', paid, y, '#15803d');
+      this.chunk(pending, 10).forEach((chunk, index) => {
+        if (y + 80 + chunk.length * 48 > 985) addPage();
+        y = this.feeReportSection(ctx, index === 0 ? 'Unpaid / Pending Students' : 'Unpaid / Pending Students (continued)', chunk, y, '#dc2626');
+      });
+      if (pending.length === 0) y = this.feeReportSection(ctx, 'Unpaid / Pending Students', pending, y, '#dc2626');
+      y += 18;
+    });
+
+    this.footer(ctx, `Page ${pageNumber}`);
+    pages.push(canvas);
+    return pages;
+  }
+
+  private startFeeReportPage(ctx: CanvasRenderingContext2D, logo: HTMLImageElement | null, month: string, batchLabel: string, rows: FeeStatusRow[]): number {
+    this.paintPage(ctx);
+    this.paintHeader(ctx, logo, 'MONTHLY FEE REPORT', `${month} | ${batchLabel}`);
+    const totalExpected = rows.reduce((sum, row) => sum + row.expectedAmount, 0);
+    const totalPaid = rows.reduce((sum, row) => sum + row.paidAmount, 0);
+    const totalPending = rows.reduce((sum, row) => sum + row.pendingAmount, 0);
+    this.metric(ctx, 'Students', String(rows.length), 56, 165, '#111827');
+    this.metric(ctx, 'Collected', this.inrText(totalPaid), 246, 165, '#15803d');
+    this.metric(ctx, 'Pending', this.inrText(totalPending), 436, 165, '#dc2626');
+    this.text(ctx, `Expected collection: ${this.inrText(totalExpected)} | Paid: ${rows.filter((row) => row.status === 'Paid').length} | Pending/Partial: ${rows.filter((row) => row.status !== 'Paid').length}`, 56, 270, 12, '#6b7280', 'bold');
+    return 302;
+  }
+
+  private createA4Canvas(): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = 794;
+    canvas.height = 1123;
+    return canvas;
+  }
+
+  private paintPage(ctx: CanvasRenderingContext2D): void {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 794, 1123);
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(0, 0, 794, 132);
+    ctx.fillStyle = '#f97316';
+    ctx.fillRect(0, 122, 794, 10);
+  }
+
+  private paintHeader(ctx: CanvasRenderingContext2D, logo: HTMLImageElement | null, title: string, subtitle: string): void {
+    if (logo) {
+      ctx.drawImage(logo, 54, 32, 72, 72);
+    } else {
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.arc(90, 68, 36, 0, Math.PI * 2);
+      ctx.fill();
+      this.text(ctx, 'UCA', 68, 76, 18, '#ffffff', 'bold');
+    }
+    this.text(ctx, 'UNITY CRICKET ACADEMY', 146, 58, 22, '#ffffff', 'bold');
+    this.text(ctx, title, 146, 86, 14, '#fed7aa', 'bold');
+    this.text(ctx, subtitle, 520, 70, 12, '#ffffff', 'bold');
+  }
+
+  private metric(ctx: CanvasRenderingContext2D, label: string, value: string, x: number, y: number, color: string): void {
+    ctx.fillStyle = '#f9fafb';
+    ctx.fillRect(x, y, 170, 76);
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.strokeRect(x, y, 170, 76);
+    this.text(ctx, label, x + 14, y + 24, 11, '#6b7280', 'bold');
+    this.text(ctx, value, x + 14, y + 55, 20, color, 'bold');
+  }
+
+  private groupRowsByBatch(rows: FeeStatusRow[]): Array<[string, FeeStatusRow[]]> {
+    const groups = new Map<string, FeeStatusRow[]>();
+    rows.forEach((row) => groups.set(row.batchName, [...(groups.get(row.batchName) || []), row]));
+    return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
+  }
+
+  private batchReportHeader(ctx: CanvasRenderingContext2D, batchName: string, rows: FeeStatusRow[], y: number): number {
+    const totalPaid = rows.reduce((sum, row) => sum + row.paidAmount, 0);
+    const totalPending = rows.reduce((sum, row) => sum + row.pendingAmount, 0);
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(38, y, 718, 42);
+    this.text(ctx, batchName, 54, y + 27, 15, '#ffffff', 'bold');
+    this.text(ctx, `${rows.length} students | Collected ${this.inrText(totalPaid)} | Pending ${this.inrText(totalPending)}`, 370, y + 27, 10, '#fed7aa', 'bold');
+    return y + 58;
+  }
+
+  private feeReportSection(ctx: CanvasRenderingContext2D, title: string, rows: FeeStatusRow[], y: number, color: string): number {
+    this.text(ctx, title, 42, y, 13, color, 'bold');
+    y += 12;
+    if (rows.length === 0) {
+      ctx.fillStyle = '#f9fafb';
+      ctx.fillRect(38, y, 718, 32);
+      this.text(ctx, 'No students in this section.', 54, y + 21, 10, '#6b7280', 'bold');
+      return y + 46;
+    }
+    return this.feeReportTable(ctx, 38, y, rows);
+  }
+
+  private feeReportTable(ctx: CanvasRenderingContext2D, x: number, y: number, rows: FeeStatusRow[]): number {
+    const headers = ['#', 'Student', 'Fee', 'Paid', 'Pending', 'Date', 'Status'];
+    const widths = [34, 210, 92, 92, 96, 108, 86];
+    let currentX = x;
+    ctx.fillStyle = '#111111';
+    ctx.fillRect(x, y, widths.reduce((sum, width) => sum + width, 0), 38);
+    headers.forEach((header, index) => {
+      this.text(ctx, header, currentX + 6, y + 25, 10, '#ffffff', 'bold');
+      currentX += widths[index];
+    });
+    rows.forEach((row, index) => {
+      currentX = x;
+      const rowY = y + 38 + index * 48;
+      ctx.fillStyle = index % 2 === 0 ? '#fff7ed' : '#ffffff';
+      ctx.fillRect(x, rowY, widths.reduce((sum, width) => sum + width, 0), 48);
+      const values = [
+        String(index + 1),
+        row.student.name,
+        this.inrText(row.expectedAmount),
+        this.inrText(row.paidAmount),
+        this.inrText(row.pendingAmount),
+        row.paymentDate || '-',
+        row.status
+      ];
+      values.forEach((value, col) => {
+        const color = col === 3 ? '#15803d' : col === 4 && row.pendingAmount > 0 ? '#dc2626' : '#111827';
+        this.text(ctx, this.truncate(value, col === 1 ? 26 : 13), currentX + 6, rowY + 29, 9, color, col >= 3 ? 'bold' : 'normal');
+        currentX += widths[col];
+      });
+    });
+    return y + 38 + rows.length * 48 + 18;
+  }
+
+  private footer(ctx: CanvasRenderingContext2D, pageText: string): void {
+    ctx.fillStyle = '#f3f4f6';
+    ctx.fillRect(46, 1038, 702, 1);
+    this.text(ctx, 'Unity Cricket Academy monthly fee report', 56, 1068, 11, '#6b7280');
+    this.text(ctx, `${pageText} | Generated on ${new Date().toLocaleDateString('en-IN')}`, 520, 1068, 11, '#6b7280');
+    ctx.strokeStyle = '#9ca3af';
+    ctx.beginPath();
+    ctx.moveTo(560, 1008);
+    ctx.lineTo(728, 1008);
+    ctx.stroke();
+    this.text(ctx, 'Rohit S. Khedekar', 574, 1030, 13, '#111827', 'bold');
+    this.text(ctx, 'Head Coach', 606, 1048, 11, '#6b7280', 'bold');
+  }
+
+  private text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, size: number, color: string, weight = 'normal'): void {
+    ctx.fillStyle = color;
+    ctx.font = `${weight} ${size}px Arial, sans-serif`;
+    ctx.fillText(value, x, y);
+  }
+
+  private inrText(value: number): string {
+    return `INR ${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value || 0)}`;
+  }
+
+  private truncate(value: string, length: number): string {
+    return value.length > length ? `${value.slice(0, length - 3)}...` : value;
+  }
+
+  private slug(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'fees';
+  }
+
+  private createPdfFromCanvases(canvases: HTMLCanvasElement[]): Uint8Array {
+    const objects: Uint8Array[] = [];
+    const pageObjectIds: number[] = [];
+    let objectId = 3;
+    canvases.forEach((canvas, index) => {
+      const pageId = objectId++;
+      const imageId = objectId++;
+      const contentId = objectId++;
+      pageObjectIds.push(pageId);
+      const imageBytes = this.base64Bytes(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
+      const content = `q\n595 0 0 842 0 0 cm\n/Img${index + 1} Do\nQ`;
+      objects[pageId] = this.ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Img${index + 1} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      objects[imageId] = this.joinBytes([
+        this.ascii(`<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`),
+        imageBytes,
+        this.ascii('\nendstream')
+      ]);
+      objects[contentId] = this.ascii(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    });
+    objects[1] = this.ascii('<< /Type /Catalog /Pages 2 0 R >>');
+    objects[2] = this.ascii(`<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageObjectIds.length} >>`);
+    return this.writePdf(objects);
+  }
+
+  private writePdf(objects: Uint8Array[]): Uint8Array {
+    const chunks: Uint8Array[] = [this.ascii('%PDF-1.4\n')];
+    const offsets = [0];
+    let length = chunks[0].length;
+    for (let id = 1; id < objects.length; id += 1) {
+      if (!objects[id]) continue;
+      offsets[id] = length;
+      const objectBytes = this.joinBytes([this.ascii(`${id} 0 obj\n`), objects[id], this.ascii('\nendobj\n')]);
+      chunks.push(objectBytes);
+      length += objectBytes.length;
+    }
+    const xrefOffset = length;
+    let xref = `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+    for (let id = 1; id < objects.length; id += 1) {
+      xref += `${String(offsets[id] || 0).padStart(10, '0')} 00000 n \n`;
+    }
+    xref += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    chunks.push(this.ascii(xref));
+    return this.joinBytes(chunks);
+  }
+
+  private savePdf(pdf: Uint8Array, fileName: string): void {
+    const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private base64Bytes(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  private ascii(value: string): Uint8Array {
+    return new TextEncoder().encode(value);
+  }
+
+  private joinBytes(chunks: Uint8Array[]): Uint8Array {
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const output = new Uint8Array(total);
+    let offset = 0;
+    chunks.forEach((chunk) => {
+      output.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return output;
+  }
+
+  private chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+    return chunks;
+  }
 }

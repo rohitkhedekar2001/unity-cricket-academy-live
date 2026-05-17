@@ -1,5 +1,8 @@
 export type Role = 'Admin' | 'Coach';
 export type AttendanceStatus = 'Present' | 'Absent';
+export type MatchStatus = 'Upcoming' | 'Completed' | 'Cancelled';
+export type MatchPlayerRole = 'Captain' | 'Wicket Keeper (WK)' | 'Batsman' | 'Bowler' | 'All-rounder';
+export type MatchFeeStatus = 'Paid' | 'Pending';
 export type CoachDesignation = string;
 export type FeePackage =
   | 'Monthly1800'
@@ -109,6 +112,53 @@ export interface Salary {
   grand_total_salary: number;
   coach?: Coach;
 }
+
+export interface AcademyMatch {
+  id: string;
+  opponent_team: string;
+  venue: string;
+  match_datetime: string;
+  match_fee: number;
+  age_group: string;
+  status: MatchStatus;
+  notes: string | null;
+  created_by: string | null;
+  created_at?: string;
+  players?: MatchPlayer[];
+  coaches?: MatchCoach[];
+  match_notes?: MatchNote[];
+}
+
+export interface MatchPlayer {
+  id: string;
+  match_id: string;
+  student_id: string | null;
+  coach_id: string | null;
+  role: MatchPlayerRole;
+  fee_status: MatchFeeStatus;
+  attendance_confirmed: boolean;
+  student?: Student | null;
+  coach?: Coach | null;
+}
+
+export interface MatchCoach {
+  id: string;
+  match_id: string;
+  coach_id: string;
+  coach?: Coach;
+}
+
+export interface MatchNote {
+  id: string;
+  match_id: string;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+  profile?: Profile | null;
+}
+
+export const matchPlayerRoles: MatchPlayerRole[] = ['Captain', 'Wicket Keeper (WK)', 'Batsman', 'Bowler', 'All-rounder'];
+export const matchStatuses: MatchStatus[] = ['Upcoming', 'Completed', 'Cancelled'];
 
 export const feePackages: Record<FeePackage, { label: string; amount: number }> = {
   Monthly1800: { label: 'Monthly', amount: 1800 },

@@ -107,6 +107,47 @@ create table if not exists public.salaries (
   unique (coach_id, month)
 );
 
+create table if not exists public.matches (
+  id uuid primary key default gen_random_uuid(),
+  opponent_team text not null,
+  venue text not null,
+  match_datetime timestamptz not null,
+  match_fee int not null default 0 check (match_fee >= 0),
+  age_group text not null,
+  status text not null default 'Upcoming' check (status in ('Upcoming','Completed','Cancelled')),
+  notes text,
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.match_players (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references public.matches(id) on delete cascade,
+  student_id uuid references public.students(id) on delete cascade,
+  coach_id uuid references public.coaches(id) on delete cascade,
+  role text not null default 'Batsman' check (role in ('Captain','Wicket Keeper (WK)','Batsman','Bowler','All-rounder')),
+  fee_status text not null default 'Pending' check (fee_status in ('Paid','Pending')),
+  attendance_confirmed boolean not null default false,
+  created_at timestamptz not null default now(),
+  check ((student_id is not null and coach_id is null) or (student_id is null and coach_id is not null))
+);
+
+create table if not exists public.match_coaches (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references public.matches(id) on delete cascade,
+  coach_id uuid not null references public.coaches(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (match_id, coach_id)
+);
+
+create table if not exists public.match_notes (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references public.matches(id) on delete cascade,
+  note text not null,
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_profiles_role on public.profiles(role);
 create unique index if not exists uq_coaches_phone_number on public.coaches(phone_number) where phone_number is not null and length(trim(phone_number)) > 0;
 create index if not exists idx_coaches_user_id on public.coaches(user_id);
@@ -121,6 +162,16 @@ create index if not exists idx_student_attendance_batch_date on public.student_a
 create index if not exists idx_coach_attendance_date on public.coach_attendance(date);
 create index if not exists idx_fees_student_month on public.fees(student_id, month);
 create index if not exists idx_salaries_coach_month on public.salaries(coach_id, month);
+create index if not exists idx_matches_datetime on public.matches(match_datetime);
+create index if not exists idx_matches_status on public.matches(status);
+create index if not exists idx_match_players_match_id on public.match_players(match_id);
+create index if not exists idx_match_players_student_id on public.match_players(student_id);
+create index if not exists idx_match_players_coach_id on public.match_players(coach_id);
+create unique index if not exists uq_match_players_student on public.match_players(match_id, student_id) where student_id is not null;
+create unique index if not exists uq_match_players_coach on public.match_players(match_id, coach_id) where coach_id is not null;
+create index if not exists idx_match_coaches_match_id on public.match_coaches(match_id);
+create index if not exists idx_match_coaches_coach_id on public.match_coaches(coach_id);
+create index if not exists idx_match_notes_match_id on public.match_notes(match_id);
 
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
@@ -175,6 +226,23 @@ as $$
     join public.coaches c on c.id = b.coach_id
     where b.id = p_batch_id and c.user_id = auth.uid() and c.is_active = true
   )
+$$;
+
+create or replace function public.is_match_manager(p_match_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(public.is_admin(), false)
+    or exists (select 1 from public.matches m where m.id = p_match_id and m.created_by = auth.uid())
+    or exists (
+      select 1
+      from public.match_coaches mc
+      join public.coaches c on c.id = mc.coach_id
+      where mc.match_id = p_match_id and c.user_id = auth.uid() and c.is_active = true
+    )
 $$;
 
 create or replace function public.create_coach_account(
@@ -501,6 +569,10 @@ alter table public.student_attendance enable row level security;
 alter table public.coach_attendance enable row level security;
 alter table public.fees enable row level security;
 alter table public.salaries enable row level security;
+alter table public.matches enable row level security;
+alter table public.match_players enable row level security;
+alter table public.match_coaches enable row level security;
+alter table public.match_notes enable row level security;
 
 create policy "Profiles readable by signed in users" on public.profiles for select to authenticated using (true);
 create policy "Admins update profiles" on public.profiles for update to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -564,6 +636,27 @@ using (
   )
 );
 create policy "Admins manage salaries" on public.salaries for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+create policy "Matches readable" on public.matches for select to authenticated using (true);
+create policy "Admins delete matches" on public.matches for delete to authenticated using (public.is_admin());
+create policy "Admins and coaches create matches" on public.matches for insert to authenticated with check (auth.uid() is not null);
+create policy "Admins and coaches update matches" on public.matches for update to authenticated
+using (auth.uid() is not null)
+with check (auth.uid() is not null);
+
+create policy "Match players readable" on public.match_players for select to authenticated using (true);
+create policy "Admins and coaches manage players" on public.match_players for all to authenticated
+using (auth.uid() is not null)
+with check (auth.uid() is not null);
+
+create policy "Match coaches readable" on public.match_coaches for select to authenticated using (true);
+create policy "Admins and coaches manage coaches" on public.match_coaches for all to authenticated
+using (auth.uid() is not null)
+with check (auth.uid() is not null);
+
+create policy "Match notes readable" on public.match_notes for select to authenticated using (true);
+create policy "Admins and coaches add notes" on public.match_notes for insert to authenticated
+with check (auth.uid() is not null);
 
 -- Create the default admin from Supabase Dashboard > Authentication > Users,
 -- then run:

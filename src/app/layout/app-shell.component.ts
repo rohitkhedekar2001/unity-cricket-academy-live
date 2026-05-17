@@ -67,6 +67,7 @@ export class AppShellComponent {
     { label: 'Batches', path: '/batches' },
     { label: 'Attendance', path: '/attendance' },
     { label: 'Fees', path: '/fees' },
+    { label: 'Matches', path: '/matches' },
     { label: 'Salaries', path: '/salaries', admin: true }
   ];
   constructor(readonly auth: AuthService) {}
