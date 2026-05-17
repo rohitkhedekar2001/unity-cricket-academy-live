@@ -11,12 +11,15 @@ import {
   MatchNote,
   MatchPlayer,
   Salary,
+  StaffTask,
+  StaffTaskComment,
+  StaffTaskStatus,
   Student,
   StudentAttendance,
   CoachAttendance
 } from '../models/app.models';
 
-type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes';
+type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes' | 'staff_tasks' | 'staff_task_assignments' | 'staff_task_comments' | 'staff_task_logs';
 
 @Injectable({ providedIn: 'root' })
 export class DataService {
@@ -222,6 +225,17 @@ export class DataService {
     );
   }
 
+  listStudentAttendanceRange(batchId: string, startDate: string, endDate: string): Promise<StudentAttendance[]> {
+    return this.run<StudentAttendance[]>(() =>
+      this.supabase.client
+        .from('student_attendance')
+        .select('*, student:students(*)')
+        .eq('batch_id', batchId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+    );
+  }
+
   listStudentAttendanceHistory(studentId: string): Promise<StudentAttendance[]> {
     return this.run<StudentAttendance[]>(() =>
       this.supabase.client
@@ -307,6 +321,45 @@ export class DataService {
 
   async addMatchNote(matchId: string, note: string): Promise<MatchNote> {
     return this.run<MatchNote>(() => this.supabase.client.from('match_notes').insert({ match_id: matchId, note }).select('*, profile:profiles(name,email,role)').single());
+  }
+
+  listStaffTasks(): Promise<StaffTask[]> {
+    return this.run<StaffTask[]>(() =>
+      this.supabase.client
+        .from('staff_tasks')
+        .select('*, creator:profiles!staff_tasks_created_by_fkey(name,email,role), assignments:staff_task_assignments(*, coach:coaches(*, profile:profiles(name,email))), comments:staff_task_comments(*, profile:profiles(name,email,role)), logs:staff_task_logs(*, profile:profiles(name,email,role))')
+        .order('deadline', { ascending: true })
+    );
+  }
+
+  saveStaffTask(task: Partial<StaffTask>): Promise<StaffTask> {
+    return this.upsert<StaffTask>('staff_tasks', task);
+  }
+
+  async saveTaskAssignments(taskId: string, coachIds: string[]): Promise<void> {
+    await this.run(() => this.supabase.client.from('staff_task_assignments').delete().eq('task_id', taskId));
+    const uniqueCoachIds = [...new Set(coachIds.filter(Boolean))];
+    if (uniqueCoachIds.length === 0) return;
+    await this.run(() => this.supabase.client.from('staff_task_assignments').insert(uniqueCoachIds.map((coachId) => ({ task_id: taskId, coach_id: coachId }))));
+  }
+
+  async updateTaskStatus(taskId: string, status: StaffTaskStatus): Promise<StaffTask> {
+    const changes: Partial<StaffTask> = { status };
+    if (status === 'Completed') changes.completed_at = new Date().toISOString();
+    if (status === 'Pending' || status === 'In Progress') {
+      changes.completed_at = null;
+      changes.approved_at = null;
+      if (status === 'Pending') changes.reopened_at = new Date().toISOString();
+    }
+    return this.run<StaffTask>(() => this.supabase.client.from('staff_tasks').update(changes as any).eq('id', taskId).select().single());
+  }
+
+  async approveTask(taskId: string): Promise<StaffTask> {
+    return this.run<StaffTask>(() => this.supabase.client.from('staff_tasks').update({ approved_at: new Date().toISOString(), status: 'Completed' }).eq('id', taskId).select().single());
+  }
+
+  async addTaskComment(taskId: string, comment: string): Promise<StaffTaskComment> {
+    return this.run<StaffTaskComment>(() => this.supabase.client.from('staff_task_comments').insert({ task_id: taskId, comment }).select('*, profile:profiles(name,email,role)').single());
   }
 
   listSalaries(coachId?: string): Promise<Salary[]> {

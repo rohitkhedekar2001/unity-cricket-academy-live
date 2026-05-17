@@ -3,6 +3,9 @@ export type AttendanceStatus = 'Present' | 'Absent';
 export type MatchStatus = 'Upcoming' | 'Completed' | 'Cancelled';
 export type MatchPlayerRole = 'Captain' | 'Wicket Keeper (WK)' | 'Batsman' | 'Bowler' | 'All-rounder';
 export type MatchFeeStatus = 'Paid' | 'Pending';
+export type StaffTaskPriority = 'High' | 'Medium' | 'Low';
+export type StaffTaskStatus = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
+export type StaffTaskCategory = 'Training' | 'Match Management' | 'Fees Collection' | 'Attendance' | 'Equipment' | 'Social Media' | 'Other';
 export type CoachDesignation = string;
 export type FeePackage =
   | 'Monthly1800'
@@ -157,8 +160,60 @@ export interface MatchNote {
   profile?: Profile | null;
 }
 
+export interface StaffTask {
+  id: string;
+  title: string;
+  description: string;
+  priority: StaffTaskPriority;
+  deadline: string;
+  category: StaffTaskCategory;
+  notes: string | null;
+  status: StaffTaskStatus;
+  approved_at: string | null;
+  completed_at: string | null;
+  reopened_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  assignments?: StaffTaskAssignment[];
+  comments?: StaffTaskComment[];
+  logs?: StaffTaskLog[];
+  creator?: Profile | null;
+}
+
+export interface StaffTaskAssignment {
+  id: string;
+  task_id: string;
+  coach_id: string;
+  assigned_at: string;
+  coach?: Coach | null;
+}
+
+export interface StaffTaskComment {
+  id: string;
+  task_id: string;
+  comment: string;
+  created_by: string | null;
+  created_at: string;
+  profile?: Profile | null;
+}
+
+export interface StaffTaskLog {
+  id: string;
+  task_id: string;
+  action: string;
+  details: string | null;
+  created_by: string | null;
+  created_at: string;
+  profile?: Profile | null;
+}
+
 export const matchPlayerRoles: MatchPlayerRole[] = ['Captain', 'Wicket Keeper (WK)', 'Batsman', 'Bowler', 'All-rounder'];
 export const matchStatuses: MatchStatus[] = ['Upcoming', 'Completed', 'Cancelled'];
+export const taskPriorities: StaffTaskPriority[] = ['High', 'Medium', 'Low'];
+export const taskStatuses: StaffTaskStatus[] = ['Pending', 'In Progress', 'Completed', 'Overdue'];
+export const taskCategories: StaffTaskCategory[] = ['Training', 'Match Management', 'Fees Collection', 'Attendance', 'Equipment', 'Social Media', 'Other'];
 
 export const feePackages: Record<FeePackage, { label: string; amount: number }> = {
   Monthly1800: { label: 'Monthly', amount: 1800 },

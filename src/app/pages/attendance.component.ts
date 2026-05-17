@@ -6,6 +6,11 @@ import { DataService } from '../services/data.service';
 import { AttendanceStatus, Batch, Coach, Student } from '../models/app.models';
 import { ToastService } from '../services/toast.service';
 
+interface AbsenceAlert {
+  student: Student;
+  dates: string[];
+}
+
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule],
@@ -76,6 +81,42 @@ import { ToastService } from '../services/toast.service';
         </div>
       </section>
     </section>
+
+    <div *ngIf="absenceAlertOpen()" class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4">
+      <div class="mx-auto my-6 w-full max-w-2xl rounded-lg bg-white shadow-2xl">
+        <div class="border-b border-red-100 bg-red-50 p-5">
+          <p class="text-xs font-black uppercase text-red-700">Attendance Alert</p>
+          <h2 class="mt-1 text-xl font-black text-neutral-950">3 consecutive days absent</h2>
+          <p class="mt-2 text-sm font-semibold text-red-800">The following students have been absent for 3 consecutive days.</p>
+          <p class="mt-1 text-sm text-neutral-700">Please call or message their parents/guardians to check on their attendance and availability.</p>
+        </div>
+
+        <div class="max-h-[60vh] space-y-3 overflow-y-auto p-5">
+          <h3 class="font-black">Students List</h3>
+          <article *ngFor="let alert of absenceAlerts()" class="rounded-lg border border-neutral-200 p-4">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h4 class="font-black text-neutral-950">{{ alert.student.name }}</h4>
+                <p class="mt-1 text-sm font-semibold text-neutral-500">Absent on:</p>
+                <ul class="mt-2 space-y-1 text-sm text-neutral-700">
+                  <li *ngFor="let absentDate of alert.dates">{{ displayDate(absentDate) }}</li>
+                </ul>
+                <p *ngIf="!alert.student.phone_number" class="mt-2 text-xs font-semibold text-red-600">No parent/guardian phone number saved.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <a class="btn-secondary" [class.pointer-events-none]="!alert.student.phone_number" [class.opacity-50]="!alert.student.phone_number" [href]="callLink(alert.student)">Call Parent</a>
+                <a class="btn-primary" [class.pointer-events-none]="!alert.student.phone_number" [class.opacity-50]="!alert.student.phone_number" [href]="messageLink(alert.student)">Send Message</a>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="flex flex-col gap-2 border-t border-neutral-100 p-5 sm:flex-row sm:justify-end">
+          <button class="btn-secondary" type="button" (click)="remindLater()">Remind Me Later</button>
+          <button class="btn-primary" type="button" (click)="absenceAlertOpen.set(false)">Close</button>
+        </div>
+      </div>
+    </div>
   `
 })
 export class AttendanceComponent implements OnInit {
@@ -87,6 +128,8 @@ export class AttendanceComponent implements OnInit {
   readonly loading = signal(false);
   readonly savingStudents = signal(false);
   readonly savingCoaches = signal(false);
+  readonly absenceAlertOpen = signal(false);
+  readonly absenceAlerts = signal<AbsenceAlert[]>([]);
   date = new Date().toISOString().slice(0, 10);
   batchId = '';
   constructor(private readonly data: DataService, readonly auth: AuthService, private readonly toast: ToastService) {}
@@ -126,6 +169,7 @@ export class AttendanceComponent implements OnInit {
     try {
       await this.data.saveStudentAttendance(this.filteredStudents().map((student) => ({ student_id: student.id, batch_id: this.batchId, date: this.date, status: this.studentStatus()[student.id] || 'Present' })));
       this.toast.success('Student attendance saved.');
+      await this.checkConsecutiveAbsences();
     } catch (err) {
       this.toast.error(err instanceof Error ? err.message : 'Unable to save attendance.');
     } finally {
@@ -147,4 +191,46 @@ export class AttendanceComponent implements OnInit {
   studentAbsent(): number { return this.filteredStudents().length - this.studentPresent(); }
   coachPresent(): number { return this.coaches().filter((coach) => (this.coachStatus()[coach.id] || 'Present') === 'Present').length; }
   coachAbsent(): number { return this.coaches().length - this.coachPresent(); }
+
+  private async checkConsecutiveAbsences(): Promise<void> {
+    const today = this.date;
+    const previousDay = this.shiftDate(today, -1);
+    const twoDaysAgo = this.shiftDate(today, -2);
+    const rows = await this.data.listStudentAttendanceRange(this.batchId, twoDaysAgo, previousDay);
+    const absentByStudent = new Map<string, Set<string>>();
+    rows.filter((row) => row.status === 'Absent').forEach((row) => {
+      absentByStudent.set(row.student_id, new Set([...(absentByStudent.get(row.student_id) || []), row.date]));
+    });
+    const alerts = this.filteredStudents()
+      .filter((student) => (this.studentStatus()[student.id] || 'Present') === 'Absent')
+      .filter((student) => absentByStudent.get(student.id)?.has(twoDaysAgo) && absentByStudent.get(student.id)?.has(previousDay))
+      .map((student) => ({ student, dates: [twoDaysAgo, previousDay, today] }));
+    this.absenceAlerts.set(alerts);
+    this.absenceAlertOpen.set(alerts.length > 0);
+  }
+
+  private shiftDate(value: string, days: number): string {
+    const [year, month, date] = value.split('-').map(Number);
+    const next = new Date(year, month - 1, date);
+    next.setDate(next.getDate() + days);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+  }
+
+  displayDate(value: string): string {
+    return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
+  }
+
+  callLink(student: Student): string {
+    return student.phone_number ? `tel:${student.phone_number}` : '#';
+  }
+
+  messageLink(student: Student): string {
+    const text = encodeURIComponent(`Hello, this is Unity Cricket Academy. ${student.name} has been absent for 3 consecutive days. Please let us know about their attendance and availability.`);
+    return student.phone_number ? `sms:${student.phone_number}?body=${text}` : '#';
+  }
+
+  remindLater(): void {
+    this.absenceAlertOpen.set(false);
+    this.toast.info('Attendance reminder dismissed for now.');
+  }
 }

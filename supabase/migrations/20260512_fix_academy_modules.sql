@@ -516,3 +516,143 @@ with check (auth.uid() is not null);
 create policy "Match notes readable" on public.match_notes for select to authenticated using (true);
 create policy "Admins and coaches add notes" on public.match_notes for insert to authenticated
 with check (auth.uid() is not null);
+
+create table if not exists public.staff_tasks (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text not null,
+  priority text not null default 'Medium' check (priority in ('High','Medium','Low')),
+  deadline date not null,
+  category text not null default 'Other' check (category in ('Training','Match Management','Fees Collection','Attendance','Equipment','Social Media','Other')),
+  notes text,
+  status text not null default 'Pending' check (status in ('Pending','In Progress','Completed','Overdue')),
+  approved_at timestamptz,
+  completed_at timestamptz,
+  reopened_at timestamptz,
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  updated_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.staff_task_assignments (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.staff_tasks(id) on delete cascade,
+  coach_id uuid not null references public.coaches(id) on delete cascade,
+  assigned_at timestamptz not null default now(),
+  unique (task_id, coach_id)
+);
+
+create table if not exists public.staff_task_comments (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.staff_tasks(id) on delete cascade,
+  comment text not null,
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.staff_task_logs (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.staff_tasks(id) on delete cascade,
+  action text not null,
+  details text,
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_staff_tasks_status on public.staff_tasks(status);
+create index if not exists idx_staff_tasks_deadline on public.staff_tasks(deadline);
+create index if not exists idx_staff_task_assignments_task on public.staff_task_assignments(task_id);
+create index if not exists idx_staff_task_assignments_coach on public.staff_task_assignments(coach_id);
+create index if not exists idx_staff_task_comments_task on public.staff_task_comments(task_id);
+create index if not exists idx_staff_task_logs_task on public.staff_task_logs(task_id);
+
+create or replace function public.is_assigned_to_task(p_task_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.staff_task_assignments sta
+    join public.coaches c on c.id = sta.coach_id
+    where sta.task_id = p_task_id and c.user_id = auth.uid() and c.is_active = true
+  )
+$$;
+
+create or replace function public.log_staff_task_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.staff_task_logs(task_id, action, details, created_by)
+    values (new.id, 'created task', new.title, auth.uid());
+    return new;
+  end if;
+
+  new.updated_at = now();
+  new.updated_by = auth.uid();
+  if old.status is distinct from new.status then
+    insert into public.staff_task_logs(task_id, action, details, created_by)
+    values (new.id, 'changed status', old.status || ' to ' || new.status, auth.uid());
+  else
+    insert into public.staff_task_logs(task_id, action, details, created_by)
+    values (new.id, 'updated task', new.title, auth.uid());
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_staff_task_log_insert on public.staff_tasks;
+create trigger trg_staff_task_log_insert after insert on public.staff_tasks
+for each row execute function public.log_staff_task_change();
+
+drop trigger if exists trg_staff_task_log_update on public.staff_tasks;
+create trigger trg_staff_task_log_update before update on public.staff_tasks
+for each row execute function public.log_staff_task_change();
+
+alter table public.staff_tasks enable row level security;
+alter table public.staff_task_assignments enable row level security;
+alter table public.staff_task_comments enable row level security;
+alter table public.staff_task_logs enable row level security;
+
+drop policy if exists "Staff tasks readable" on public.staff_tasks;
+drop policy if exists "Admins create tasks" on public.staff_tasks;
+drop policy if exists "Admins update tasks" on public.staff_tasks;
+drop policy if exists "Assigned coaches update task status" on public.staff_tasks;
+drop policy if exists "Admins delete tasks" on public.staff_tasks;
+drop policy if exists "Task assignments readable" on public.staff_task_assignments;
+drop policy if exists "Admins manage task assignments" on public.staff_task_assignments;
+drop policy if exists "Task comments readable" on public.staff_task_comments;
+drop policy if exists "Task comments writable" on public.staff_task_comments;
+drop policy if exists "Task logs readable" on public.staff_task_logs;
+drop policy if exists "Task logs writable by system" on public.staff_task_logs;
+
+create policy "Staff tasks readable" on public.staff_tasks for select to authenticated
+using (public.is_admin() or public.is_assigned_to_task(id));
+create policy "Admins create tasks" on public.staff_tasks for insert to authenticated
+with check (public.is_admin());
+create policy "Admins update tasks" on public.staff_tasks for update to authenticated
+using (public.is_admin()) with check (public.is_admin());
+create policy "Assigned coaches update task status" on public.staff_tasks for update to authenticated
+using (public.is_assigned_to_task(id)) with check (public.is_assigned_to_task(id));
+create policy "Admins delete tasks" on public.staff_tasks for delete to authenticated
+using (public.is_admin());
+
+create policy "Task assignments readable" on public.staff_task_assignments for select to authenticated
+using (public.is_admin() or public.is_assigned_to_task(task_id));
+create policy "Admins manage task assignments" on public.staff_task_assignments for all to authenticated
+using (public.is_admin()) with check (public.is_admin());
+
+create policy "Task comments readable" on public.staff_task_comments for select to authenticated
+using (public.is_admin() or public.is_assigned_to_task(task_id));
+create policy "Task comments writable" on public.staff_task_comments for insert to authenticated
+with check (public.is_admin() or public.is_assigned_to_task(task_id));
+
+create policy "Task logs readable" on public.staff_task_logs for select to authenticated
+using (public.is_admin() or public.is_assigned_to_task(task_id));
+create policy "Task logs writable by system" on public.staff_task_logs for insert to authenticated
+with check (auth.uid() is not null);
+
+notify pgrst, 'reload schema';

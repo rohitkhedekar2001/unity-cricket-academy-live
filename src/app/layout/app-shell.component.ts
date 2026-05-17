@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { DataService } from '../services/data.service';
 
 @Component({
   standalone: true,
@@ -55,11 +56,26 @@ import { AuthService } from '../services/auth.service';
           <router-outlet></router-outlet>
         </main>
       </section>
+
+      <div *ngIf="taskReminderOpen() && pendingTaskCount() > 0" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+        <div class="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">
+          <p class="text-xs font-black uppercase text-academy-red">Task Reminder</p>
+          <h2 class="mt-1 text-xl font-black">You have {{ pendingTaskCount() }} pending task(s)</h2>
+          <p class="mt-2 text-sm text-neutral-600">Open the Tasks section to view deadlines, comments, and progress updates.</p>
+          <div class="mt-5 flex justify-end gap-2">
+            <button class="btn-secondary" (click)="taskReminderOpen.set(false)">Later</button>
+            <a class="btn-primary" routerLink="/tasks" (click)="taskReminderOpen.set(false)">Open Tasks</a>
+          </div>
+        </div>
+      </div>
     </div>
   `
 })
 export class AppShellComponent {
   readonly menuOpen = signal(false);
+  readonly taskReminderOpen = signal(false);
+  readonly pendingTaskCount = signal(0);
+  private reminderLoaded = false;
   readonly nav = [
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'Students', path: '/students' },
@@ -68,7 +84,28 @@ export class AppShellComponent {
     { label: 'Attendance', path: '/attendance' },
     { label: 'Fees', path: '/fees' },
     { label: 'Matches', path: '/matches' },
+    { label: 'Tasks', path: '/tasks' },
     { label: 'Salaries', path: '/salaries', admin: true }
   ];
-  constructor(readonly auth: AuthService) {}
+  constructor(readonly auth: AuthService, private readonly data: DataService) {
+    effect(() => {
+      const profile = this.auth.profile();
+      if (profile?.role === 'Coach' && !this.reminderLoaded) {
+        this.reminderLoaded = true;
+        void this.loadTaskReminder();
+      }
+    });
+  }
+
+  private async loadTaskReminder(): Promise<void> {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const tasks = await this.data.listStaffTasks();
+      const pending = tasks.filter((task) => task.status !== 'Completed' && (task.status === 'Pending' || task.deadline < today));
+      this.pendingTaskCount.set(pending.length);
+      this.taskReminderOpen.set(pending.length > 0);
+    } catch {
+      this.pendingTaskCount.set(0);
+    }
+  }
 }
