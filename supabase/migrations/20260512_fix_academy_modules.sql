@@ -407,6 +407,8 @@ create table if not exists public.match_players (
   match_id uuid not null references public.matches(id) on delete cascade,
   student_id uuid references public.students(id) on delete cascade,
   coach_id uuid references public.coaches(id) on delete cascade,
+  player_name text,
+  player_group text,
   role text not null default 'Batsman' check (role in ('Captain','Wicket Keeper (WK)','Batsman','Bowler','All-rounder')),
   fee_status text not null default 'Pending' check (fee_status in ('Paid','Pending')),
   attendance_confirmed boolean not null default false,
@@ -416,6 +418,12 @@ create table if not exists public.match_players (
 
 alter table public.match_players
 add column if not exists coach_id uuid references public.coaches(id) on delete cascade;
+
+alter table public.match_players
+add column if not exists player_name text;
+
+alter table public.match_players
+add column if not exists player_group text;
 
 alter table public.match_players
 alter column student_id drop not null;
@@ -475,6 +483,49 @@ as $$
       where mc.match_id = p_match_id and c.user_id = auth.uid() and c.is_active = true
     )
 $$;
+
+create or replace function public.list_match_students()
+returns setof public.students
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select s.*
+  from public.students s
+  where s.is_active = true
+  order by s.name
+$$;
+
+grant execute on function public.list_match_students() to authenticated;
+
+create or replace function public.list_match_batches()
+returns setof public.batches
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select b.*
+  from public.batches b
+  order by b.name
+$$;
+
+grant execute on function public.list_match_batches() to authenticated;
+
+update public.match_players mp
+set player_name = coalesce(mp.player_name, s.name),
+    player_group = coalesce(mp.player_group, b.name)
+from public.students s
+left join public.batches b on b.id = s.batch_id
+where mp.student_id = s.id;
+
+update public.match_players mp
+set player_name = coalesce(mp.player_name, p.name),
+    player_group = coalesce(mp.player_group, 'Coach / Staff')
+from public.coaches c
+left join public.profiles p on p.id = c.user_id
+where mp.coach_id = c.id;
 
 alter table public.matches enable row level security;
 alter table public.match_players enable row level security;

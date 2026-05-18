@@ -52,6 +52,11 @@ export class DataService {
     return this.run<Student[]>(() => query);
   }
 
+  listMatchStudents(): Promise<Student[]> {
+    if (this.auth.isAdmin()) return this.listStudents('', 'active');
+    return this.run<Student[]>(() => this.supabase.client.rpc('list_match_students'));
+  }
+
   getStudent(id: string): Promise<Student> {
     return this.run<Student>(() =>
       this.supabase.client.from('students').select('*, batch:batches(*)').eq('id', id).single()
@@ -211,6 +216,11 @@ export class DataService {
     );
   }
 
+  listMatchBatches(): Promise<Batch[]> {
+    if (this.auth.isAdmin()) return this.listBatches();
+    return this.run<Batch[]>(() => this.supabase.client.rpc('list_match_batches'));
+  }
+
   saveBatch(batch: Partial<Batch>): Promise<Batch> {
     return this.upsert<Batch>('batches', batch);
   }
@@ -300,6 +310,8 @@ export class DataService {
       match_id: matchId,
       student_id: 'student_id' in player ? player.student_id : null,
       coach_id: 'coach_id' in player ? player.coach_id : null,
+      player_name: player.player_name ?? null,
+      player_group: player.player_group ?? null,
       role: player.role ?? 'Batsman',
       fee_status: player.fee_status ?? 'Pending',
       attendance_confirmed: player.attendance_confirmed ?? false

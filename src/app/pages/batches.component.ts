@@ -5,10 +5,11 @@ import { AuthService } from '../services/auth.service';
 import { DataService } from '../services/data.service';
 import { Batch, Coach } from '../models/app.models';
 import { ToastService } from '../services/toast.service';
+import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DeleteConfirmComponent],
   template: `
     <section class="space-y-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -20,7 +21,10 @@ import { ToastService } from '../services/toast.service';
           <h3 class="text-xl font-black">{{ batch.name }}</h3>
           <p class="mt-1 text-sm text-neutral-500">{{ batch.timing }}</p>
           <div class="mt-4 flex items-center justify-between"><span class="badge bg-red-100 text-red-800">{{ batch.students?.length || 0 }} students</span><span class="text-sm font-bold">{{ batch.coach?.profile?.name || 'No coach' }}</span></div>
-          <button *ngIf="auth.isAdmin()" class="btn-secondary mt-4 w-full" (click)="$event.stopPropagation(); openForm(batch)">Edit</button>
+          <div *ngIf="auth.isAdmin()" class="mt-4 grid grid-cols-2 gap-2">
+            <button class="btn-secondary w-full" (click)="$event.stopPropagation(); openForm(batch)">Edit</button>
+            <button class="btn-danger w-full" [disabled]="deleting()" (click)="$event.stopPropagation(); askDelete(batch)">Delete</button>
+          </div>
         </article>
       </div>
     </section>
@@ -44,6 +48,7 @@ import { ToastService } from '../services/toast.service';
         <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save batch' }}</button></div>
       </form>
     </div>
+    <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteLabel()" (cancel)="deleteTarget.set(null)" (confirm)="removeBatch()"></app-delete-confirm>
   `
 })
 export class BatchesComponent implements OnInit {
@@ -56,7 +61,9 @@ export class BatchesComponent implements OnInit {
   readonly selected = signal<Batch | null>(null);
   readonly formOpen = signal(false);
   readonly saving = signal(false);
+  readonly deleting = signal(false);
   readonly formError = signal('');
+  readonly deleteTarget = signal<Batch | null>(null);
   readonly form = this.fb.group({ id: [''], name: ['', Validators.required], timing: ['', Validators.required], coach_id: [null as string | null] });
   async ngOnInit(): Promise<void> { await Promise.all([this.load(), this.data.listCoaches().then((rows) => this.coaches.set(rows)).catch(() => [])]); }
   load(): Promise<void> { return this.data.listBatches().then((rows) => this.batches.set(rows)); }
@@ -93,5 +100,30 @@ export class BatchesComponent implements OnInit {
       return true;
     }
     return false;
+  }
+
+  askDelete(batch: Batch): void {
+    this.deleteTarget.set(batch);
+  }
+
+  deleteLabel(): string {
+    return this.deleteTarget() ? `batch "${this.deleteTarget()?.name}"` : 'batch';
+  }
+
+  async removeBatch(): Promise<void> {
+    const batch = this.deleteTarget();
+    if (!batch || !this.auth.isAdmin()) return;
+    this.deleting.set(true);
+    try {
+      await this.data.delete('batches', batch.id);
+      this.deleteTarget.set(null);
+      if (this.selected()?.id === batch.id) this.selected.set(null);
+      await this.load();
+      this.toast.success('Batch deleted successfully.');
+    } catch (err) {
+      this.toast.error(err instanceof Error ? err.message : 'Unable to delete batch.');
+    } finally {
+      this.deleting.set(false);
+    }
   }
 }

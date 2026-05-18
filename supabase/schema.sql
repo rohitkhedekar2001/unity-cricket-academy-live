@@ -125,6 +125,8 @@ create table if not exists public.match_players (
   match_id uuid not null references public.matches(id) on delete cascade,
   student_id uuid references public.students(id) on delete cascade,
   coach_id uuid references public.coaches(id) on delete cascade,
+  player_name text,
+  player_group text,
   role text not null default 'Batsman' check (role in ('Captain','Wicket Keeper (WK)','Batsman','Bowler','All-rounder')),
   fee_status text not null default 'Pending' check (fee_status in ('Paid','Pending')),
   attendance_confirmed boolean not null default false,
@@ -293,6 +295,35 @@ as $$
       where mc.match_id = p_match_id and c.user_id = auth.uid() and c.is_active = true
     )
 $$;
+
+create or replace function public.list_match_students()
+returns setof public.students
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select s.*
+  from public.students s
+  where s.is_active = true
+  order by s.name
+$$;
+
+grant execute on function public.list_match_students() to authenticated;
+
+create or replace function public.list_match_batches()
+returns setof public.batches
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select b.*
+  from public.batches b
+  order by b.name
+$$;
+
+grant execute on function public.list_match_batches() to authenticated;
 
 create or replace function public.is_assigned_to_task(p_task_id uuid)
 returns boolean

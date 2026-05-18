@@ -10,6 +10,8 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
 type SelectedMatchParticipant = {
   student_id?: string;
   coach_id?: string;
+  player_name?: string;
+  player_group?: string;
   role: MatchPlayerRole;
   fee_status: 'Paid' | 'Pending';
   attendance_confirmed: boolean;
@@ -257,9 +259,9 @@ export class MatchesComponent implements OnInit {
     try {
       const [matches, students, coaches, batches] = await Promise.all([
         this.data.listMatches(),
-        this.data.listStudents('', 'active'),
+        this.data.listMatchStudents(),
         this.data.listCoaches(),
-        this.data.listMyBatches()
+        this.data.listMatchBatches()
       ]);
       this.matches.set(matches);
       this.students.set(students);
@@ -286,6 +288,8 @@ export class MatchesComponent implements OnInit {
     this.selectedPlayers.set((match?.players || []).map((player) => ({
       student_id: player.student_id ?? undefined,
       coach_id: player.coach_id ?? undefined,
+      player_name: player.player_name ?? this.participantName(player),
+      player_group: player.player_group ?? this.participantGroup(player),
       role: player.role,
       fee_status: player.fee_status,
       attendance_confirmed: player.attendance_confirmed
@@ -334,12 +338,12 @@ export class MatchesComponent implements OnInit {
 
   toggleStudentPlayer(student: Student): void {
     const exists = this.isStudentSelected(student.id);
-    this.selectedPlayers.update((players) => exists ? players.filter((player) => player.student_id !== student.id) : [...players, { student_id: student.id, role: 'Batsman', fee_status: 'Pending', attendance_confirmed: false }]);
+    this.selectedPlayers.update((players) => exists ? players.filter((player) => player.student_id !== student.id) : [...players, { student_id: student.id, player_name: student.name, player_group: this.batchName(student.batch_id), role: 'Batsman', fee_status: 'Pending', attendance_confirmed: false }]);
   }
 
   toggleCoachPlayer(coach: Coach): void {
     const exists = this.isCoachPlayerSelected(coach.id);
-    this.selectedPlayers.update((players) => exists ? players.filter((player) => player.coach_id !== coach.id) : [...players, { coach_id: coach.id, role: 'All-rounder', fee_status: 'Pending', attendance_confirmed: false }]);
+    this.selectedPlayers.update((players) => exists ? players.filter((player) => player.coach_id !== coach.id) : [...players, { coach_id: coach.id, player_name: coach.profile?.name ?? 'Coach', player_group: 'Coach / Staff', role: 'All-rounder', fee_status: 'Pending', attendance_confirmed: false }]);
   }
 
   isStudentSelected(studentId: string): boolean { return this.selectedPlayers().some((player) => player.student_id === studentId); }
@@ -439,8 +443,8 @@ export class MatchesComponent implements OnInit {
   upcomingCount(): number { return this.filteredMatches().filter((match) => match.status === 'Upcoming').length; }
   completedCount(): number { return this.filteredMatches().filter((match) => match.status === 'Completed').length; }
   cancelledCount(): number { return this.filteredMatches().filter((match) => match.status === 'Cancelled').length; }
-  participantName(player: MatchPlayer): string { return player.student?.name || player.coach?.profile?.name || 'Player'; }
-  participantGroup(player: MatchPlayer): string { return player.student ? (player.student.batch?.name || this.batchName(player.student.batch_id)) : 'Coach / Staff'; }
+  participantName(player: MatchPlayer): string { return player.player_name || player.student?.name || player.coach?.profile?.name || 'Player'; }
+  participantGroup(player: MatchPlayer): string { return player.player_group || (player.student ? (player.student.batch?.name || this.batchName(player.student.batch_id)) : 'Coach / Staff'); }
   batchName(id: string | null): string { return this.batches().find((batch) => batch.id === id)?.name ?? 'Unassigned'; }
   displayDate(value: string): string { return value ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '-'; }
   money(value: number): string { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0); }

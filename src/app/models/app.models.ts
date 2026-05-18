@@ -137,6 +137,8 @@ export interface MatchPlayer {
   match_id: string;
   student_id: string | null;
   coach_id: string | null;
+  player_name: string | null;
+  player_group: string | null;
   role: MatchPlayerRole;
   fee_status: MatchFeeStatus;
   attendance_confirmed: boolean;
