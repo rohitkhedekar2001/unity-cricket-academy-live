@@ -86,6 +86,7 @@ interface FeeStatusRow {
               <td><span class="badge" [ngClass]="statusClass(row.status)">{{ row.status }}</span></td>
               <td class="space-x-2 pr-3 text-right">
                 <button class="btn-secondary !px-3" (click)="openFormForStudent(row.student)">Add</button>
+                <a *ngIf="row.pendingAmount > 0" class="btn-primary !px-3" [class.pointer-events-none]="!row.student.phone_number" [class.opacity-50]="!row.student.phone_number" [href]="feeReminderLink(row)" target="_blank" rel="noopener">WhatsApp</a>
                 <button *ngIf="row.fees[0]" class="btn-secondary !px-3" (click)="openForm(row.fees[0])">Edit</button>
                 <button *ngIf="auth.isAdmin() && row.fees[0]" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(row.fees[0])">Delete</button>
               </td>
@@ -299,8 +300,22 @@ export class FeesComponent implements OnInit {
     if (status === 'Partial') return 'bg-orange-100 text-orange-800';
     return 'bg-red-100 text-red-800';
   }
+  feeReminderLink(row: FeeStatusRow): string {
+    const phone = this.normalizePhone(row.student.phone_number || '');
+    if (!phone) return '#';
+    const message = encodeURIComponent(
+      `Hello, this is Unity Cricket Academy. This is a gentle reminder that ${row.student.name}'s fee for ${this.selectedMonth()} is pending. Pending amount: ${this.money(row.pendingAmount)}. Please complete the payment at your convenience. Thank you.`
+    );
+    return `https://wa.me/${phone}?text=${message}`;
+  }
   money(value: number): string { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value || 0); }
   invalid(name: string): boolean { const control = this.form.get(name); return !!control && control.invalid && (control.touched || control.dirty); }
+
+  private normalizePhone(value: string): string {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 10) return `91${digits}`;
+    return digits;
+  }
 
   async downloadSelectedFeeReport(): Promise<void> {
     await this.downloadFeeReport(this.reportBatch());
