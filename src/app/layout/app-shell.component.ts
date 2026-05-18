@@ -83,6 +83,7 @@ export class AppShellComponent {
     { label: 'Batches', path: '/batches' },
     { label: 'Attendance', path: '/attendance' },
     { label: 'Fees', path: '/fees' },
+    { label: 'Enquiries', path: '/enquiries' },
     { label: 'Matches', path: '/matches' },
     { label: 'Tasks', path: '/tasks' },
     { label: 'Salaries', path: '/salaries', admin: true }

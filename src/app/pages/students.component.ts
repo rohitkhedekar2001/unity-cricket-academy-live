@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DataService } from '../services/data.service';
 import { AuthService } from '../services/auth.service';
 import { Batch, feePackages, FeePackage, Student } from '../models/app.models';
@@ -97,6 +97,7 @@ export class StudentsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly data = inject(DataService);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
   readonly auth = inject(AuthService);
   readonly students = signal<Student[]>([]);
   readonly batches = signal<Batch[]>([]);
@@ -134,6 +135,7 @@ export class StudentsComponent implements OnInit {
     this.form.get('dob')?.valueChanges.subscribe((dob) => this.updateAgeFromDob(dob || ''));
     await this.data.listMyBatches().then((rows) => this.batches.set(rows));
     await this.load();
+    this.openPrefilledStudentFormFromEnquiry();
   }
 
   load(): Promise<void> {
@@ -144,25 +146,25 @@ export class StudentsComponent implements OnInit {
     }).then((rows) => this.students.set(rows));
   }
 
-  openForm(student?: Student): void {
+  openForm(student?: Student, prefill?: Partial<Student>): void {
     this.form.reset({
-      id: student?.id ?? '',
-      name: student?.name ?? '',
-      dob: student?.dob ?? student?.date_of_birth ?? '',
-      age: student?.age ?? 0,
-      date_of_birth: student?.date_of_birth ?? student?.dob ?? '',
+      id: student?.id ?? prefill?.id ?? '',
+      name: student?.name ?? prefill?.name ?? '',
+      dob: student?.dob ?? student?.date_of_birth ?? prefill?.dob ?? prefill?.date_of_birth ?? '',
+      age: student?.age ?? prefill?.age ?? 0,
+      date_of_birth: student?.date_of_birth ?? student?.dob ?? prefill?.date_of_birth ?? prefill?.dob ?? '',
       admission_date: student?.admission_date ?? new Date().toISOString().slice(0, 10),
-      address: student?.address ?? '',
-      phone_number: student?.phone_number ?? '',
-      fee_package: student?.fee_package ?? 'Monthly1800',
-      fee_plan_name: student?.fee_plan_name ?? 'Monthly',
-      fee_plan_amount: student?.fee_plan_amount ?? 1800,
+      address: student?.address ?? prefill?.address ?? '',
+      phone_number: student?.phone_number ?? prefill?.phone_number ?? '',
+      fee_package: student?.fee_package ?? prefill?.fee_package ?? 'Monthly1800',
+      fee_plan_name: student?.fee_plan_name ?? prefill?.fee_plan_name ?? 'Monthly',
+      fee_plan_amount: student?.fee_plan_amount ?? prefill?.fee_plan_amount ?? 1800,
       school_name: student?.school_name ?? '',
-      age_group: student?.age_group ?? '',
-      batch_id: student?.batch_id ?? (this.auth.isAdmin() ? null : this.batches()[0]?.id ?? null),
+      age_group: student?.age_group ?? prefill?.age_group ?? '',
+      batch_id: student?.batch_id ?? prefill?.batch_id ?? (this.auth.isAdmin() ? null : this.batches()[0]?.id ?? null),
       is_active: student?.is_active ?? true
     });
-    this.updateAgeFromDob(this.form.get('dob')?.value || '', student?.age ?? 0);
+    this.updateAgeFromDob(this.form.get('dob')?.value || '', student?.age ?? prefill?.age ?? 0);
     this.applyCoachBatchValidator();
     this.formError.set('');
     this.formOpen.set(true);
@@ -182,6 +184,8 @@ export class StudentsComponent implements OnInit {
     this.saving.set(true);
     try {
       await this.data.saveStudent({ ...value, id: value.id || undefined } as Partial<Student>);
+      const enquiryId = this.route.snapshot.queryParamMap.get('enquiryId');
+      if (enquiryId && !value.id) await this.data.updateEnquiryStatus(enquiryId, 'Converted');
       this.formOpen.set(false);
       await this.load();
       this.toast.success('Student saved successfully.');
@@ -287,5 +291,22 @@ export class StudentsComponent implements OnInit {
       batchControl.setValidators([Validators.required]);
     }
     batchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private openPrefilledStudentFormFromEnquiry(): void {
+    const params = this.route.snapshot.queryParamMap;
+    if (!params.get('fromEnquiry')) return;
+    const dob = params.get('dob') || '';
+    const age = dob ? this.calculateAge(dob) : Number(params.get('age') || 0);
+    this.openForm(undefined, {
+      name: params.get('name') || '',
+      phone_number: params.get('phone') || '',
+      dob,
+      date_of_birth: dob,
+      age,
+      age_group: params.get('ageGroup') || '',
+      address: params.get('remarks') ? `Enquiry notes: ${params.get('remarks')}` : ''
+    });
+    this.toast.info('Student form opened with enquiry details. Please select final batch and fee package.');
   }
 }

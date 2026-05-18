@@ -6,6 +6,9 @@ export type MatchFeeStatus = 'Paid' | 'Pending';
 export type StaffTaskPriority = 'High' | 'Medium' | 'Low';
 export type StaffTaskStatus = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
 export type StaffTaskCategory = 'Training' | 'Match Management' | 'Fees Collection' | 'Attendance' | 'Equipment' | 'Social Media' | 'Other';
+export type EnquirySource = 'Walk-in' | 'Reference' | 'Instagram' | 'WhatsApp' | 'Other';
+export type EnquiryInterest = 'Regular Coaching' | 'Personal Coaching' | 'Match Practice';
+export type EnquiryStatus = 'New' | 'Follow-up Required' | 'Interested' | 'Not Interested' | 'Converted' | 'Closed';
 export type CoachDesignation = string;
 export type FeePackage =
   | 'Monthly1800'
@@ -211,11 +214,32 @@ export interface StaffTaskLog {
   profile?: Profile | null;
 }
 
+export interface Enquiry {
+  id: string;
+  player_name: string;
+  mobile_number: string;
+  dob: string | null;
+  age: number | null;
+  interested_batch: string | null;
+  source: EnquirySource;
+  interested_in: EnquiryInterest;
+  remarks: string | null;
+  status: EnquiryStatus;
+  visit_date: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  creator?: Profile | null;
+}
+
 export const matchPlayerRoles: MatchPlayerRole[] = ['Captain', 'Wicket Keeper (WK)', 'Batsman', 'Bowler', 'All-rounder'];
 export const matchStatuses: MatchStatus[] = ['Upcoming', 'Completed', 'Cancelled'];
 export const taskPriorities: StaffTaskPriority[] = ['High', 'Medium', 'Low'];
 export const taskStatuses: StaffTaskStatus[] = ['Pending', 'In Progress', 'Completed', 'Overdue'];
 export const taskCategories: StaffTaskCategory[] = ['Training', 'Match Management', 'Fees Collection', 'Attendance', 'Equipment', 'Social Media', 'Other'];
+export const enquirySources: EnquirySource[] = ['Walk-in', 'Reference', 'Instagram', 'WhatsApp', 'Other'];
+export const enquiryInterests: EnquiryInterest[] = ['Regular Coaching', 'Personal Coaching', 'Match Practice'];
+export const enquiryStatuses: EnquiryStatus[] = ['New', 'Follow-up Required', 'Interested', 'Not Interested', 'Converted', 'Closed'];
 
 export const feePackages: Record<FeePackage, { label: string; amount: number }> = {
   Monthly1800: { label: 'Monthly', amount: 1800 },

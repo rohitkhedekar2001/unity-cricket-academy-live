@@ -193,6 +193,24 @@ create table if not exists public.staff_task_logs (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.enquiries (
+  id uuid primary key default gen_random_uuid(),
+  player_name text not null,
+  mobile_number text not null,
+  dob date,
+  age int check (age is null or age between 3 and 80),
+  interested_batch text,
+  source text not null default 'Walk-in' check (source in ('Walk-in','Reference','Instagram','WhatsApp','Other')),
+  interested_in text not null default 'Regular Coaching' check (interested_in in ('Regular Coaching','Personal Coaching','Match Practice')),
+  remarks text,
+  status text not null default 'New' check (status in ('New','Follow-up Required','Interested','Not Interested','Converted','Closed')),
+  visit_date date not null default current_date,
+  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (dob is not null or age is not null)
+);
+
 create index if not exists idx_profiles_role on public.profiles(role);
 create unique index if not exists uq_coaches_phone_number on public.coaches(phone_number) where phone_number is not null and length(trim(phone_number)) > 0;
 create index if not exists idx_coaches_user_id on public.coaches(user_id);
@@ -223,6 +241,11 @@ create index if not exists idx_staff_task_assignments_task on public.staff_task_
 create index if not exists idx_staff_task_assignments_coach on public.staff_task_assignments(coach_id);
 create index if not exists idx_staff_task_comments_task on public.staff_task_comments(task_id);
 create index if not exists idx_staff_task_logs_task on public.staff_task_logs(task_id);
+create index if not exists idx_enquiries_created_by on public.enquiries(created_by);
+create index if not exists idx_enquiries_status on public.enquiries(status);
+create index if not exists idx_enquiries_visit_date on public.enquiries(visit_date);
+create index if not exists idx_enquiries_source on public.enquiries(source);
+create index if not exists idx_enquiries_interested_batch on public.enquiries(interested_batch);
 
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
@@ -240,6 +263,18 @@ for each row execute function public.touch_updated_at();
 drop trigger if exists trg_coach_attendance_updated on public.coach_attendance;
 create trigger trg_coach_attendance_updated before update on public.coach_attendance
 for each row execute function public.touch_updated_at();
+
+create or replace function public.touch_enquiry_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_enquiries_updated on public.enquiries;
+create trigger trg_enquiries_updated before update on public.enquiries
+for each row execute function public.touch_enquiry_updated_at();
 
 create or replace function public.current_user_role()
 returns text
@@ -702,6 +737,7 @@ alter table public.staff_tasks enable row level security;
 alter table public.staff_task_assignments enable row level security;
 alter table public.staff_task_comments enable row level security;
 alter table public.staff_task_logs enable row level security;
+alter table public.enquiries enable row level security;
 
 create policy "Profiles readable by signed in users" on public.profiles for select to authenticated using (true);
 create policy "Admins update profiles" on public.profiles for update to authenticated using (public.is_admin()) with check (public.is_admin());
@@ -812,6 +848,16 @@ create policy "Task logs readable" on public.staff_task_logs for select to authe
 using (public.is_admin() or public.is_assigned_to_task(task_id));
 create policy "Task logs writable by system" on public.staff_task_logs for insert to authenticated
 with check (auth.uid() is not null);
+
+create policy "Admins manage enquiries" on public.enquiries for all to authenticated
+using (public.is_admin()) with check (public.is_admin());
+create policy "Coaches insert enquiries" on public.enquiries for insert to authenticated
+with check (auth.uid() is not null and coalesce(created_by, auth.uid()) = auth.uid());
+create policy "Coaches read own enquiries" on public.enquiries for select to authenticated
+using (public.is_admin() or created_by = auth.uid());
+create policy "Coaches update own enquiries" on public.enquiries for update to authenticated
+using (created_by = auth.uid())
+with check (created_by = auth.uid());
 
 -- Create the default admin from Supabase Dashboard > Authentication > Users,
 -- then run:

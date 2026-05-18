@@ -12,6 +12,7 @@ import { AttendanceComponent } from './pages/attendance.component';
 import { FeesComponent } from './pages/fees.component';
 import { MatchesComponent } from './pages/matches.component';
 import { StaffTasksComponent } from './pages/staff-tasks.component';
+import { EnquiriesComponent } from './pages/enquiries.component';
 import { SalariesComponent } from './pages/salaries.component';
 
 export const routes: Routes = [
@@ -30,6 +31,7 @@ export const routes: Routes = [
       { path: 'batches', component: BatchesComponent },
       { path: 'attendance', component: AttendanceComponent },
       { path: 'fees', component: FeesComponent },
+      { path: 'enquiries', component: EnquiriesComponent },
       { path: 'matches', component: MatchesComponent },
       { path: 'tasks', component: StaffTasksComponent },
       { path: 'salaries', component: SalariesComponent, canActivate: [adminGuard] }

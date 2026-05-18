@@ -5,6 +5,8 @@ import {
   AttendanceStatus,
   Batch,
   Coach,
+  Enquiry,
+  EnquiryStatus,
   Fee,
   AcademyMatch,
   MatchCoach,
@@ -19,7 +21,7 @@ import {
   CoachAttendance
 } from '../models/app.models';
 
-type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes' | 'staff_tasks' | 'staff_task_assignments' | 'staff_task_comments' | 'staff_task_logs';
+type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes' | 'staff_tasks' | 'staff_task_assignments' | 'staff_task_comments' | 'staff_task_logs' | 'enquiries';
 
 @Injectable({ providedIn: 'root' })
 export class DataService {
@@ -372,6 +374,37 @@ export class DataService {
 
   async addTaskComment(taskId: string, comment: string): Promise<StaffTaskComment> {
     return this.run<StaffTaskComment>(() => this.supabase.client.from('staff_task_comments').insert({ task_id: taskId, comment }).select('*, profile:profiles(name,email,role)').single());
+  }
+
+  listEnquiries(filters: { search?: string; status?: string; interestedBatch?: string; source?: string } = {}): Promise<Enquiry[]> {
+    let query = this.supabase.client
+      .from('enquiries')
+      .select('*, creator:profiles!enquiries_created_by_fkey(name,email,role)')
+      .order('visit_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (filters.search?.trim()) {
+      const value = filters.search.trim();
+      query = query.or(`player_name.ilike.%${value}%,mobile_number.ilike.%${value}%`);
+    }
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.interestedBatch) query = query.eq('interested_batch', filters.interestedBatch);
+    if (filters.source) query = query.eq('source', filters.source);
+    return this.run<Enquiry[]>(() => query);
+  }
+
+  saveEnquiry(enquiry: Partial<Enquiry>): Promise<Enquiry> {
+    return this.upsert<Enquiry>('enquiries', enquiry);
+  }
+
+  updateEnquiryStatus(id: string, status: EnquiryStatus): Promise<Enquiry> {
+    return this.run<Enquiry>(() =>
+      this.supabase.client
+        .from('enquiries')
+        .update({ status })
+        .eq('id', id)
+        .select('*, creator:profiles!enquiries_created_by_fkey(name,email,role)')
+        .single()
+    );
   }
 
   listSalaries(coachId?: string): Promise<Salary[]> {
