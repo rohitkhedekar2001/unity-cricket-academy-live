@@ -105,7 +105,7 @@ interface AbsenceAlert {
               </div>
               <div class="flex flex-wrap gap-2">
                 <a class="btn-secondary" [class.pointer-events-none]="!alert.student.phone_number" [class.opacity-50]="!alert.student.phone_number" [href]="callLink(alert.student)">Call Parent</a>
-                <a class="btn-primary" [class.pointer-events-none]="!alert.student.phone_number" [class.opacity-50]="!alert.student.phone_number" [href]="messageLink(alert.student)">Send Message</a>
+                <a class="btn-primary" [class.pointer-events-none]="!alert.student.phone_number" [class.opacity-50]="!alert.student.phone_number" [href]="whatsappLink(alert)" target="_blank" rel="noopener">Send WhatsApp</a>
               </div>
             </div>
           </article>
@@ -224,9 +224,20 @@ export class AttendanceComponent implements OnInit {
     return student.phone_number ? `tel:${student.phone_number}` : '#';
   }
 
-  messageLink(student: Student): string {
-    const text = encodeURIComponent(`Hello, this is Unity Cricket Academy. ${student.name} has been absent for 3 consecutive days. Please let us know about their attendance and availability.`);
-    return student.phone_number ? `sms:${student.phone_number}?body=${text}` : '#';
+  whatsappLink(alert: AbsenceAlert): string {
+    const phone = this.normalizePhone(alert.student.phone_number || '');
+    if (!phone) return '#';
+    const absentDates = alert.dates.map((date) => this.displayDate(date)).join(', ');
+    const text = encodeURIComponent(
+      `Hello, this is Unity Cricket Academy. ${alert.student.name} has been absent for 3 consecutive days (${absentDates}). Please let us know about their attendance and availability.`
+    );
+    return `https://wa.me/${phone}?text=${text}`;
+  }
+
+  private normalizePhone(value: string): string {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 10) return `91${digits}`;
+    return digits;
   }
 
   remindLater(): void {
