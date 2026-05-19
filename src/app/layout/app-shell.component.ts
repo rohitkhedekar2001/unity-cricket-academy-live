@@ -4,6 +4,13 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { DataService } from '../services/data.service';
 
+interface NavItem {
+  label: string;
+  path?: string;
+  admin?: boolean;
+  children?: Array<{ label: string; path: string }>;
+}
+
 @Component({
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
@@ -24,12 +31,25 @@ import { DataService } from '../services/data.service';
             </button>
           </div>
           <nav class="flex-1 space-y-1 p-3">
-            <a *ngFor="let item of nav" [routerLink]="item.path" routerLinkActive="bg-white/10 text-orange-300"
-              class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-              [class.hidden]="item.admin && !auth.isAdmin()" (click)="menuOpen.set(false)">
-              <span class="h-2 w-2 rounded-full bg-academy-orange"></span>
-              {{ item.label }}
-            </a>
+            <ng-container *ngFor="let item of nav">
+              <a *ngIf="!item.children" [routerLink]="item.path || '/'" routerLinkActive="bg-white/10 text-orange-300"
+                class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+                [class.hidden]="item.admin && !auth.isAdmin()" (click)="menuOpen.set(false)">
+                <span class="h-2 w-2 rounded-full bg-academy-orange"></span>
+                {{ item.label }}
+              </a>
+              <ng-container *ngIf="item.children as children">
+                <div *ngIf="!item.admin || auth.isAdmin()" class="rounded-lg border border-white/10 bg-white/[0.03] p-2">
+                  <p class="px-2 pb-1 text-xs font-black uppercase text-orange-300">{{ item.label }}</p>
+                  <a *ngFor="let child of children" [routerLink]="child.path" routerLinkActive="bg-white/10 text-orange-300"
+                    class="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-white/75 transition hover:bg-white/10 hover:text-white"
+                    (click)="menuOpen.set(false)">
+                    <span class="h-1.5 w-1.5 rounded-full bg-academy-orange"></span>
+                    {{ child.label }}
+                  </a>
+                </div>
+              </ng-container>
+            </ng-container>
           </nav>
           <div class="border-t border-white/10 p-4">
             <p class="text-sm font-bold">{{ auth.profile()?.name }}</p>
@@ -76,7 +96,7 @@ export class AppShellComponent {
   readonly taskReminderOpen = signal(false);
   readonly pendingTaskCount = signal(0);
   private reminderLoaded = false;
-  readonly nav = [
+  readonly nav: NavItem[] = [
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'Students', path: '/students' },
     { label: 'Coaches', path: '/coaches', admin: true },
@@ -86,6 +106,17 @@ export class AppShellComponent {
     { label: 'Enquiries', path: '/enquiries' },
     { label: 'Matches', path: '/matches' },
     { label: 'Tasks', path: '/tasks' },
+    {
+      label: 'Coach Performance',
+      admin: true,
+      children: [
+        { label: 'Dashboard', path: '/coach-performance/dashboard' },
+        { label: 'Monthly Rankings', path: '/coach-performance/rankings' },
+        { label: 'Point Logs', path: '/coach-performance/logs' },
+        { label: 'Enquiries', path: '/coach-performance/enquiries' },
+        { label: 'Rewards & Penalties', path: '/coach-performance/adjustments' }
+      ]
+    },
     { label: 'Salaries', path: '/salaries', admin: true }
   ];
   constructor(readonly auth: AuthService, private readonly data: DataService) {

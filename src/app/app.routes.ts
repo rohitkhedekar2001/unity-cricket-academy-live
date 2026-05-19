@@ -14,6 +14,7 @@ import { MatchesComponent } from './pages/matches.component';
 import { StaffTasksComponent } from './pages/staff-tasks.component';
 import { EnquiriesComponent } from './pages/enquiries.component';
 import { SalariesComponent } from './pages/salaries.component';
+import { CoachPerformanceComponent } from './features/coach-performance/coach-performance.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -34,6 +35,12 @@ export const routes: Routes = [
       { path: 'enquiries', component: EnquiriesComponent },
       { path: 'matches', component: MatchesComponent },
       { path: 'tasks', component: StaffTasksComponent },
+      { path: 'coach-performance', pathMatch: 'full', redirectTo: 'coach-performance/dashboard' },
+      { path: 'coach-performance/dashboard', component: CoachPerformanceComponent, canActivate: [adminGuard], data: { section: 'dashboard' } },
+      { path: 'coach-performance/rankings', component: CoachPerformanceComponent, canActivate: [adminGuard], data: { section: 'rankings' } },
+      { path: 'coach-performance/logs', component: CoachPerformanceComponent, canActivate: [adminGuard], data: { section: 'logs' } },
+      { path: 'coach-performance/enquiries', component: CoachPerformanceComponent, canActivate: [adminGuard], data: { section: 'enquiries' } },
+      { path: 'coach-performance/adjustments', component: CoachPerformanceComponent, canActivate: [adminGuard], data: { section: 'adjustments' } },
       { path: 'salaries', component: SalariesComponent, canActivate: [adminGuard] }
     ]
   },
