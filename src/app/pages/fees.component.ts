@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Batch, feePackages, FeePackage, Fee, Student } from '../models/app.models';
+import { Batch, Branch, feePackages, FeePackage, Fee, Student } from '../models/app.models';
 import { DataService } from '../services/data.service';
 import { AuthService } from '../services/auth.service';
 import { ToastService } from '../services/toast.service';
@@ -36,12 +36,16 @@ interface FeeStatusRow {
       </div>
 
       <section class="panel p-4">
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <input class="form-input" placeholder="Search student" [value]="search()" (input)="search.set($any($event.target).value)">
           <input class="form-input" type="month" [value]="selectedMonth()" (change)="selectedMonth.set($any($event.target).value)">
+          <select class="form-input" [value]="selectedBranch()" (change)="selectedBranch.set($any($event.target).value); selectedBatch.set('')">
+            <option value="">{{ auth.isAdmin() ? 'All Branches' : 'All My Branches' }}</option>
+            <option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option>
+          </select>
           <select class="form-input" [value]="selectedBatch()" (change)="selectedBatch.set($any($event.target).value)">
             <option value="">{{ auth.isAdmin() ? 'All Batches' : 'All My Batches' }}</option>
-            <option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option>
+            <option *ngFor="let batch of filteredBatches()" [value]="batch.id">{{ batch.name }}</option>
           </select>
           <button type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
         </div>
@@ -53,9 +57,13 @@ interface FeeStatusRow {
           <p class="text-sm text-neutral-500">{{ reportBatch() ? 'Download the selected batch fee report with paid and pending students.' : auth.isAdmin() ? 'Download a combined academy fee report for all batches.' : 'Download a combined report for your assigned batches.' }}</p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select class="form-input sm:w-56" [value]="reportBranch()" (change)="reportBranch.set($any($event.target).value); reportBatch.set('')">
+            <option value="">{{ auth.isAdmin() ? 'All Branches' : 'All My Branches' }}</option>
+            <option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option>
+          </select>
           <select class="form-input sm:w-56" [value]="reportBatch()" (change)="reportBatch.set($any($event.target).value)">
             <option value="">{{ auth.isAdmin() ? 'All Batches' : 'All My Batches' }}</option>
-            <option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option>
+            <option *ngFor="let batch of reportBatches()" [value]="batch.id">{{ batch.name }}</option>
           </select>
           <button class="btn-primary" type="button" [disabled]="loading() || reportBusy()" (click)="downloadSelectedFeeReport()">{{ reportBusy() ? 'Preparing...' : reportBatch() ? 'Download Batch PDF' : 'Download Combined PDF' }}</button>
         </div>
@@ -151,7 +159,8 @@ interface FeeStatusRow {
       <form class="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} fee</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 space-y-4">
-          <label class="block"><span class="form-label">Batch</span><select class="form-input mt-1" formControlName="batch_id" (change)="onBatchChange()"><option value="">Select batch</option><option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option></select></label>
+          <label *ngIf="auth.isAdmin()" class="block"><span class="form-label">Branch</span><select class="form-input mt-1" formControlName="branch_id" (change)="onFormBranchChange()"><option value="">Select branch</option><option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option></select></label>
+          <label class="block"><span class="form-label">Batch</span><select class="form-input mt-1" formControlName="batch_id" (change)="onBatchChange()"><option value="">Select batch</option><option *ngFor="let batch of formBatches()" [value]="batch.id">{{ batch.name }}</option></select></label>
           <label class="block"><span class="form-label">Student</span><select class="form-input mt-1" [class.border-red-500]="invalid('student_id')" formControlName="student_id"><option value="">Select student</option><option *ngFor="let student of filteredStudents()" [value]="student.id">{{ student.name }}</option></select><small *ngIf="invalid('student_id')" class="text-xs font-semibold text-red-600">Student is required.</small></label>
           <label class="block"><span class="form-label">Fee package</span><select class="form-input mt-1" formControlName="fee_package" (change)="syncFee()"><option *ngFor="let key of feeKeys" [value]="key">{{ feePackages[key].label }}</option></select></label>
           <label class="block"><span class="form-label">Month</span><input class="form-input mt-1" [class.border-red-500]="invalid('month')" type="month" formControlName="month"><small *ngIf="invalid('month')" class="text-xs font-semibold text-red-600">Month is required.</small></label>
@@ -176,6 +185,7 @@ export class FeesComponent implements OnInit {
   readonly auth = inject(AuthService);
   readonly fees = signal<Fee[]>([]);
   readonly students = signal<Student[]>([]);
+  readonly branches = signal<Branch[]>([]);
   readonly batches = signal<Batch[]>([]);
   readonly loading = signal(false);
   readonly formOpen = signal(false);
@@ -185,27 +195,33 @@ export class FeesComponent implements OnInit {
   readonly formError = signal('');
   readonly deleteTarget = signal<Fee | null>(null);
   readonly activeTab = signal<'paid' | 'pending'>('paid');
+  readonly selectedBranch = signal('');
   readonly selectedBatch = signal('');
+  readonly reportBranch = signal('');
   readonly reportBatch = signal('');
   readonly selectedMonth = signal(new Date().toISOString().slice(0, 7));
   readonly search = signal('');
   readonly feePackages = feePackages;
   readonly feeKeys = Object.keys(feePackages) as FeePackage[];
-  readonly form = this.fb.group({ id: [''], batch_id: ['', Validators.required], student_id: ['', Validators.required], fee_package: ['Monthly1800' as FeePackage], amount: [1800, Validators.required], fee_plan_name: ['Monthly'], fee_plan_amount: [1800], package_months: [1], coverage_start_date: [''], coverage_end_date: [''], next_due_date: [''], month: [new Date().toISOString().slice(0, 7), Validators.required], paid_date: [new Date().toISOString().slice(0, 10), Validators.required] });
+  readonly form = this.fb.group({ id: [''], branch_id: [''], batch_id: ['', Validators.required], student_id: ['', Validators.required], fee_package: ['Monthly1800' as FeePackage], amount: [1800, Validators.required], fee_plan_name: ['Monthly'], fee_plan_amount: [1800], package_months: [1], coverage_start_date: [''], coverage_end_date: [''], next_due_date: [''], month: [new Date().toISOString().slice(0, 7), Validators.required], paid_date: [new Date().toISOString().slice(0, 10), Validators.required] });
+
+  readonly filteredBatches = computed(() => this.batches().filter((batch) => !this.selectedBranch() || batch.branch_id === this.selectedBranch()));
+  readonly reportBatches = computed(() => this.batches().filter((batch) => !this.reportBranch() || batch.branch_id === this.reportBranch()));
 
   readonly visibleStudents = computed(() => {
     const batchId = this.selectedBatch();
     const search = this.search().trim().toLowerCase();
     return this.students().filter((student) => {
       const matchesBatch = !batchId || student.batch_id === batchId;
+      const matchesBranch = !this.selectedBranch() || student.batch?.branch_id === this.selectedBranch();
       const matchesSearch = !search || student.name.toLowerCase().includes(search);
-      return matchesBatch && matchesSearch;
+      return matchesBranch && matchesBatch && matchesSearch;
     });
   });
 
   readonly visibleFees = computed(() => {
     const studentIds = new Set(this.visibleStudents().map((student) => student.id));
-    return this.fees().filter((fee) => studentIds.has(fee.student_id) && fee.month === this.selectedMonth());
+    return this.fees().filter((fee) => studentIds.has(fee.student_id) && fee.paid_date?.slice(0, 7) === this.selectedMonth());
   });
 
   readonly feeRows = computed<FeeStatusRow[]>(() => this.visibleStudents().map((student) => {
@@ -242,8 +258,9 @@ export class FeesComponent implements OnInit {
   async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const [students, batches, fees] = await Promise.all([this.data.listStudents('', 'active'), this.data.listMyBatches(), this.data.listFees()]);
+      const [students, branches, batches, fees] = await Promise.all([this.data.listStudents('', 'active'), this.data.listBranches().catch(() => []), this.data.listMyBatches(), this.data.listFees()]);
       this.students.set(students);
+      this.branches.set(branches);
       this.batches.set(batches);
       this.fees.set(fees);
     } catch (err) {
@@ -255,8 +272,10 @@ export class FeesComponent implements OnInit {
   openForm(fee?: Fee): void {
     const student = this.students().find((item) => item.id === fee?.student_id);
     const batchId = student?.batch_id ?? this.batches()[0]?.id ?? '';
+    const branchId = student?.batch?.branch_id ?? this.batches().find((batch) => batch.id === batchId)?.branch_id ?? '';
     this.form.reset({
       id: fee?.id ?? '',
+      branch_id: branchId,
       batch_id: batchId,
       student_id: fee?.student_id ?? this.students().find((item) => item.batch_id === batchId)?.id ?? '',
       fee_package: fee?.fee_package ?? 'Monthly1800',
@@ -276,6 +295,7 @@ export class FeesComponent implements OnInit {
   openFormForStudent(student: Student): void {
     this.form.reset({
       id: '',
+      branch_id: student.batch?.branch_id ?? this.batches().find((batch) => batch.id === student.batch_id)?.branch_id ?? '',
       batch_id: student.batch_id ?? '',
       student_id: student.id,
       fee_package: student.fee_package ?? 'Monthly1800',
@@ -292,7 +312,9 @@ export class FeesComponent implements OnInit {
     this.formError.set('');
     this.formOpen.set(true);
   }
+  formBatches(): Batch[] { return this.batches().filter((batch) => !this.form.value.branch_id || batch.branch_id === this.form.value.branch_id); }
   filteredStudents(): Student[] { return this.students().filter((student) => student.batch_id === this.form.value.batch_id); }
+  onFormBranchChange(): void { this.form.patchValue({ batch_id: '', student_id: '' }); }
   onBatchChange(): void { this.form.patchValue({ student_id: this.filteredStudents()[0]?.id ?? '' }); }
   syncFee(): void { const selected = feePackages[this.form.value.fee_package as FeePackage]; const months = this.feePackageMonths(this.form.value.fee_package as FeePackage); this.form.patchValue({ amount: selected.amount, fee_plan_name: selected.label, fee_plan_amount: selected.amount, package_months: months }); }
   async save(): Promise<void> {
@@ -301,7 +323,7 @@ export class FeesComponent implements OnInit {
     const value = this.form.getRawValue();
     this.saving.set(true);
     try {
-      const { batch_id: _batchId, ...fee } = value;
+      const { batch_id: _batchId, branch_id: _branchId, ...fee } = value;
       const coverage = this.calculateCoverage(value.month || new Date().toISOString().slice(0, 7), this.feePackageMonths(value.fee_package as FeePackage));
       await this.data.saveFee({
         ...fee,
@@ -344,13 +366,16 @@ export class FeesComponent implements OnInit {
   }
   clearFilters(): void {
     this.selectedBatch.set('');
+    this.selectedBranch.set('');
     this.reportBatch.set('');
+    this.reportBranch.set('');
     this.search.set('');
     this.selectedMonth.set(new Date().toISOString().slice(0, 7));
   }
   studentName(id: string): string { return this.students().find((student) => student.id === id)?.name ?? 'Student'; }
   studentById(id: string): Student | undefined { return this.students().find((student) => student.id === id); }
   batchName(id: string | null): string { return this.batches().find((batch) => batch.id === id)?.name ?? 'Unassigned'; }
+  branchName(id: string | null): string { return this.branches().find((branch) => branch.id === id)?.name ?? 'Branch'; }
   feeCoverageLabel(fee: Fee): string {
     const coverage = this.normalizedCoverage(fee);
     return `${this.displayDate(coverage.start)} to ${this.displayDate(coverage.end)}`;
@@ -396,11 +421,11 @@ export class FeesComponent implements OnInit {
   }
 
   async downloadSelectedFeeReport(): Promise<void> {
-    await this.downloadFeeReport(this.reportBatch());
+    await this.downloadFeeReport(this.reportBatch(), this.reportBranch());
   }
 
-  private async downloadFeeReport(batchId: string): Promise<void> {
-    const rows = this.reportRows(batchId);
+  private async downloadFeeReport(batchId: string, branchId: string): Promise<void> {
+    const rows = this.reportRows(batchId, branchId);
     if (rows.length === 0) {
       this.toast.info('No fee data found for the selected report.');
       return;
@@ -408,7 +433,8 @@ export class FeesComponent implements OnInit {
     this.reportBusy.set(true);
     try {
       const month = this.selectedMonth();
-      const batchLabel = batchId ? this.batchName(batchId) : this.auth.isAdmin() ? 'All Batches' : 'Assigned Batches';
+      const branchLabel = branchId ? this.branchName(branchId) : this.auth.isAdmin() ? 'All Branches' : 'Assigned Branches';
+      const batchLabel = batchId ? this.batchName(batchId) : branchLabel;
       const logo = await this.loadLogo();
       const pages = this.renderFeeReportCanvases(month, batchLabel, rows, logo);
       const pdf = this.createPdfFromCanvases(pages);
@@ -421,12 +447,13 @@ export class FeesComponent implements OnInit {
     }
   }
 
-  private reportRows(batchId: string): FeeStatusRow[] {
+  private reportRows(batchId: string, branchId: string): FeeStatusRow[] {
     const search = this.search().trim().toLowerCase();
     return this.students().filter((student) => {
       const matchesBatch = !batchId || student.batch_id === batchId;
+      const matchesBranch = !branchId || student.batch?.branch_id === branchId;
       const matchesSearch = !search || student.name.toLowerCase().includes(search);
-      return matchesBatch && matchesSearch;
+      return matchesBranch && matchesBatch && matchesSearch;
     }).map((student): FeeStatusRow => {
       const fees = this.coveringFees(student.id, this.selectedMonth());
       const paidAmount = fees.reduce((total, fee) => total + (fee.amount || 0), 0);

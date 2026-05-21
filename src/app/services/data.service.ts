@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import {
   AttendanceStatus,
   Batch,
+  Branch,
   Coach,
   Enquiry,
   EnquiryStatus,
@@ -21,7 +22,7 @@ import {
   CoachAttendance
 } from '../models/app.models';
 
-type Table = 'profiles' | 'students' | 'coaches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes' | 'staff_tasks' | 'staff_task_assignments' | 'staff_task_comments' | 'staff_task_logs' | 'enquiries';
+type Table = 'profiles' | 'students' | 'coaches' | 'branches' | 'batches' | 'fees' | 'salaries' | 'student_attendance' | 'coach_attendance' | 'matches' | 'match_players' | 'match_coaches' | 'match_notes' | 'staff_tasks' | 'staff_task_assignments' | 'staff_task_comments' | 'staff_task_logs' | 'enquiries';
 
 @Injectable({ providedIn: 'root' })
 export class DataService {
@@ -40,15 +41,19 @@ export class DataService {
   listStudents(
     search = '',
     active: 'all' | 'active' | 'inactive' = 'all',
-    filters: { batchId?: string; age?: number | null; feePackage?: string } = {}
+    filters: { batchId?: string; branchId?: string; age?: number | null; feePackage?: string } = {}
   ): Promise<Student[]> {
+    const batchSelect = filters.branchId
+      ? 'batch:batches!inner(id,name,timing,coach_id,branch_id,branch:branches(id,name,location,is_active))'
+      : 'batch:batches(id,name,timing,coach_id,branch_id,branch:branches(id,name,location,is_active))';
     let query = this.supabase.client
       .from('students')
-      .select('*, batch:batches(id,name,timing,coach_id)')
+      .select(`*, ${batchSelect}`)
       .order('name');
     if (search.trim()) query = query.ilike('name', `%${search.trim()}%`);
     if (active !== 'all') query = query.eq('is_active', active === 'active');
     if (filters.batchId) query = query.eq('batch_id', filters.batchId);
+    if (filters.branchId) query = query.eq('batch.branch_id', filters.branchId);
     if (filters.age !== undefined && filters.age !== null) query = query.eq('age', filters.age);
     if (filters.feePackage) query = query.eq('fee_package', filters.feePackage);
     return this.run<Student[]>(() => query);
@@ -61,7 +66,7 @@ export class DataService {
 
   getStudent(id: string): Promise<Student> {
     return this.run<Student>(() =>
-      this.supabase.client.from('students').select('*, batch:batches(*)').eq('id', id).single()
+      this.supabase.client.from('students').select('*, batch:batches(*, branch:branches(id,name,location,is_active))').eq('id', id).single()
     );
   }
 
@@ -99,7 +104,7 @@ export class DataService {
         .from('students')
         .update({ is_active: isActive })
         .eq('id', id)
-        .select('*, batch:batches(id,name,timing,coach_id)')
+        .select('*, batch:batches(id,name,timing,coach_id,branch_id,branch:branches(id,name,location,is_active))')
         .single()
     );
   }
@@ -182,6 +187,30 @@ export class DataService {
     return this.upsert<Coach>('coaches', coach);
   }
 
+  listBranches(active: 'all' | 'active' = 'active'): Promise<Branch[]> {
+    let query = this.supabase.client
+      .from('branches')
+      .select('*, batches(id,name,timing,coach_id,students(id,name,is_active))')
+      .order('name');
+    if (active === 'active') query = query.eq('is_active', true);
+    return this.run<Branch[]>(() => query);
+  }
+
+  saveBranch(branch: Partial<Branch>): Promise<Branch> {
+    return this.upsert<Branch>('branches', branch);
+  }
+
+  updateBranchActiveStatus(id: string, isActive: boolean): Promise<Branch> {
+    return this.run<Branch>(() =>
+      this.supabase.client
+        .from('branches')
+        .update({ is_active: isActive })
+        .eq('id', id)
+        .select()
+        .single()
+    );
+  }
+
   async updateCoachAccount(payload: {
     p_coach_id: string;
     p_name: string;
@@ -203,7 +232,7 @@ export class DataService {
     return this.run<Batch[]>(() =>
       this.supabase.client
         .from('batches')
-        .select('*, coach:coaches(id,designation,profile:profiles(name,email)), students(id,name,is_active)')
+        .select('*, branch:branches(id,name,location,is_active), coach:coaches(id,designation,profile:profiles(name,email)), students(id,name,is_active)')
         .order('name')
     );
   }
@@ -213,7 +242,7 @@ export class DataService {
     return this.run<Batch[]>(() =>
       this.supabase.client
         .from('batches')
-        .select('*, coach:coaches(id,user_id,designation,profile:profiles(name,email)), students(id,name,is_active)')
+        .select('*, branch:branches(id,name,location,is_active), coach:coaches(id,user_id,designation,profile:profiles(name,email)), students(id,name,is_active)')
         .order('name')
     );
   }

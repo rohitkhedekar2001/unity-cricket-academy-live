@@ -21,10 +21,20 @@ create table if not exists public.coaches (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.branches (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  location text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+
 create table if not exists public.batches (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   timing text not null,
+  branch_id uuid references public.branches(id) on delete set null,
   coach_id uuid references public.coaches(id) on delete set null,
   created_at timestamptz not null default now()
 );
@@ -219,7 +229,9 @@ create index if not exists idx_profiles_role on public.profiles(role);
 create unique index if not exists uq_coaches_phone_number on public.coaches(phone_number) where phone_number is not null and length(trim(phone_number)) > 0;
 create index if not exists idx_coaches_user_id on public.coaches(user_id);
 create index if not exists idx_coaches_active on public.coaches(is_active);
+create index if not exists idx_branches_active on public.branches(is_active);
 create index if not exists idx_batches_coach_id on public.batches(coach_id);
+create index if not exists idx_batches_branch_id on public.batches(branch_id);
 create unique index if not exists uq_batches_name on public.batches(lower(name));
 create index if not exists idx_students_batch_id on public.students(batch_id);
 create index if not exists idx_students_active on public.students(is_active);
@@ -252,6 +264,14 @@ create index if not exists idx_enquiries_visit_date on public.enquiries(visit_da
 create index if not exists idx_enquiries_source on public.enquiries(source);
 create index if not exists idx_enquiries_interested_batch on public.enquiries(interested_batch);
 
+insert into public.branches (name, location, is_active)
+values
+  ('St. Mary', 'St. Mary', true),
+  ('Zingabat Takli', 'Zingabat Takli', true)
+on conflict (name) do update
+set location = coalesce(public.branches.location, excluded.location),
+    is_active = true;
+
 create or replace function public.touch_updated_at()
 returns trigger language plpgsql as $$
 begin
@@ -268,6 +288,18 @@ for each row execute function public.touch_updated_at();
 drop trigger if exists trg_coach_attendance_updated on public.coach_attendance;
 create trigger trg_coach_attendance_updated before update on public.coach_attendance
 for each row execute function public.touch_updated_at();
+
+create or replace function public.touch_simple_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_branches_updated on public.branches;
+create trigger trg_branches_updated before update on public.branches
+for each row execute function public.touch_simple_updated_at();
 
 create or replace function public.touch_enquiry_updated_at()
 returns trigger language plpgsql as $$
@@ -728,6 +760,7 @@ $$;
 
 alter table public.profiles enable row level security;
 alter table public.coaches enable row level security;
+alter table public.branches enable row level security;
 alter table public.batches enable row level security;
 alter table public.students enable row level security;
 alter table public.student_attendance enable row level security;
@@ -749,6 +782,16 @@ create policy "Admins update profiles" on public.profiles for update to authenti
 
 create policy "Coaches readable" on public.coaches for select to authenticated using (true);
 create policy "Admins manage coaches" on public.coaches for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+create policy "Branches readable" on public.branches for select to authenticated
+using (
+  public.is_admin() or exists (
+    select 1
+    from public.batches b
+    where b.branch_id = branches.id and public.is_assigned_coach_for_batch(b.id)
+  )
+);
+create policy "Admins manage branches" on public.branches for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 create policy "Batches readable" on public.batches for select to authenticated using (public.is_admin() or public.is_assigned_coach_for_batch(id));
 create policy "Admins manage batches" on public.batches for all to authenticated using (public.is_admin()) with check (public.is_admin());

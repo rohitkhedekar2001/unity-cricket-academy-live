@@ -1,9 +1,9 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../services/auth.service';
 import { DataService } from '../services/data.service';
-import { Batch, Coach } from '../models/app.models';
+import { Batch, Branch, Coach } from '../models/app.models';
 import { ToastService } from '../services/toast.service';
 import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
 
@@ -16,10 +16,18 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
         <div><h2 class="text-2xl font-black">Batches</h2><p class="text-sm text-neutral-500">Timing, strength, and assigned coach.</p></div>
         <button *ngIf="auth.isAdmin()" class="btn-primary" (click)="openForm()">Add batch</button>
       </div>
+      <div class="panel p-4">
+        <div class="grid gap-3 md:grid-cols-2">
+          <select class="form-input" [value]="branchFilter()" (change)="branchFilter.set($any($event.target).value)">
+            <option value="">{{ auth.isAdmin() ? 'All Branches' : 'All My Branches' }}</option>
+            <option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option>
+          </select>
+        </div>
+      </div>
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <article *ngFor="let batch of batches()" class="panel cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg" (click)="selected.set(batch)">
+        <article *ngFor="let batch of filteredBatches()" class="panel cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-lg" (click)="selected.set(batch)">
           <h3 class="text-xl font-black">{{ batch.name }}</h3>
-          <p class="mt-1 text-sm text-neutral-500">{{ batch.timing }}</p>
+          <p class="mt-1 text-sm text-neutral-500">{{ batch.branch?.name || 'No branch' }} &middot; {{ batch.timing }}</p>
           <div class="mt-4 flex items-center justify-between"><span class="badge bg-red-100 text-red-800">{{ batch.students?.length || 0 }} students</span><span class="text-sm font-bold">{{ batch.coach?.profile?.name || 'No coach' }}</span></div>
           <div *ngIf="auth.isAdmin()" class="mt-4 grid grid-cols-2 gap-2">
             <button class="btn-secondary w-full" (click)="$event.stopPropagation(); openForm(batch)">Edit</button>
@@ -32,6 +40,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
       <section class="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
         <div class="flex items-center justify-between"><h3 class="text-xl font-black">{{ selected()?.name }}</h3><button class="btn-secondary" (click)="selected.set(null)">Close</button></div>
         <p class="mt-2 text-neutral-600">{{ selected()?.timing }}</p>
+        <p class="mt-4"><span class="form-label block">Branch</span>{{ selected()?.branch?.name || 'No branch assigned' }}</p>
         <p class="mt-4"><span class="form-label block">Coach</span>{{ selected()?.coach?.profile?.name || 'No coach assigned' }}</p>
         <p class="mt-3"><span class="form-label block">Strength</span>{{ selected()?.students?.length || 0 }} active and inactive students</p>
       </section>
@@ -41,6 +50,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} batch</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 space-y-4">
           <label class="block"><span class="form-label">Name</span><input class="form-input mt-1" [class.border-red-500]="invalid('name')" formControlName="name"><small *ngIf="invalid('name')" class="text-xs font-semibold text-red-600">Batch name is required and must be unique.</small></label>
+          <label class="block"><span class="form-label">Branch</span><select class="form-input mt-1" [class.border-red-500]="invalid('branch_id')" formControlName="branch_id"><option [ngValue]="null">Select branch</option><option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option></select><small *ngIf="invalid('branch_id')" class="text-xs font-semibold text-red-600">Branch is required.</small></label>
           <label class="block"><span class="form-label">Timing</span><input class="form-input mt-1" [class.border-red-500]="invalid('timing')" formControlName="timing" placeholder="6:00 AM - 8:00 AM"><small *ngIf="invalid('timing')" class="text-xs font-semibold text-red-600">Timing is required.</small></label>
           <label class="block"><span class="form-label">Coach</span><select class="form-input mt-1" formControlName="coach_id"><option [ngValue]="null">Unassigned</option><option *ngFor="let coach of coaches()" [value]="coach.id">{{ coach.profile?.name }} &middot; {{ coach.designation }}</option></select></label>
         </div>
@@ -57,6 +67,7 @@ export class BatchesComponent implements OnInit {
   private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly batches = signal<Batch[]>([]);
+  readonly branches = signal<Branch[]>([]);
   readonly coaches = signal<Coach[]>([]);
   readonly selected = signal<Batch | null>(null);
   readonly formOpen = signal(false);
@@ -64,10 +75,12 @@ export class BatchesComponent implements OnInit {
   readonly deleting = signal(false);
   readonly formError = signal('');
   readonly deleteTarget = signal<Batch | null>(null);
-  readonly form = this.fb.group({ id: [''], name: ['', Validators.required], timing: ['', Validators.required], coach_id: [null as string | null] });
-  async ngOnInit(): Promise<void> { await Promise.all([this.load(), this.data.listCoaches().then((rows) => this.coaches.set(rows)).catch(() => [])]); }
+  readonly branchFilter = signal('');
+  readonly filteredBatches = computed(() => this.batches().filter((batch) => !this.branchFilter() || batch.branch_id === this.branchFilter()));
+  readonly form = this.fb.group({ id: [''], name: ['', Validators.required], branch_id: [null as string | null, Validators.required], timing: ['', Validators.required], coach_id: [null as string | null] });
+  async ngOnInit(): Promise<void> { await Promise.all([this.load(), this.data.listBranches().then((rows) => this.branches.set(rows)).catch(() => []), this.data.listCoaches().then((rows) => this.coaches.set(rows)).catch(() => [])]); }
   load(): Promise<void> { return this.data.listBatches().then((rows) => this.batches.set(rows)); }
-  openForm(batch?: Batch): void { this.form.reset({ id: batch?.id ?? '', name: batch?.name ?? '', timing: batch?.timing ?? '', coach_id: batch?.coach_id ?? null }); this.formError.set(''); this.formOpen.set(true); }
+  openForm(batch?: Batch): void { this.form.reset({ id: batch?.id ?? '', name: batch?.name ?? '', branch_id: batch?.branch_id ?? this.branches()[0]?.id ?? null, timing: batch?.timing ?? '', coach_id: batch?.coach_id ?? null }); this.formError.set(''); this.formOpen.set(true); }
   async save(): Promise<void> {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.hasDuplicate()) return;

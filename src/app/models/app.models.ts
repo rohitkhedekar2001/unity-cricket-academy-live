@@ -38,6 +38,16 @@ export interface Coach {
   profile?: Profile | null;
 }
 
+export interface Branch {
+  id: string;
+  name: string;
+  location: string | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string | null;
+  batches?: Batch[];
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -62,7 +72,9 @@ export interface Batch {
   name: string;
   timing: string;
   coach_id: string | null;
+  branch_id: string | null;
   coach?: Coach | null;
+  branch?: Branch | null;
   students?: Student[];
 }
 

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../services/auth.service';
 import { DataService } from '../services/data.service';
-import { AttendanceStatus, Batch, Coach, Student } from '../models/app.models';
+import { AttendanceStatus, Batch, Branch, Coach, Student } from '../models/app.models';
 import { ToastService } from '../services/toast.service';
 
 interface AbsenceAlert {
@@ -17,9 +17,10 @@ interface AbsenceAlert {
   template: `
     <section class="space-y-5">
       <div><h2 class="text-2xl font-black">Attendance</h2><p class="text-sm text-neutral-500">Bulk mark attendance by date and batch.</p></div>
-      <div class="panel grid gap-3 p-4 md:grid-cols-2">
+      <div class="panel grid gap-3 p-4 md:grid-cols-3">
         <label><span class="form-label">Date</span><input class="form-input mt-1" type="date" [(ngModel)]="date" (change)="loadAttendance()"></label>
-        <label><span class="form-label">Batch</span><select class="form-input mt-1" [(ngModel)]="batchId" (change)="loadAttendance()"><option value="">Select batch</option><option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option></select></label>
+        <label><span class="form-label">Branch</span><select class="form-input mt-1" [(ngModel)]="branchId" (change)="onBranchChange()"><option value="">{{ auth.isAdmin() ? 'All Branches' : 'All My Branches' }}</option><option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option></select></label>
+        <label><span class="form-label">Batch</span><select class="form-input mt-1" [(ngModel)]="batchId" (change)="loadAttendance()"><option value="">Select batch</option><option *ngFor="let batch of filteredBatches()" [value]="batch.id">{{ batch.name }}</option></select></label>
       </div>
       <section class="panel p-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -121,6 +122,7 @@ interface AbsenceAlert {
 })
 export class AttendanceComponent implements OnInit {
   readonly batches = signal<Batch[]>([]);
+  readonly branches = signal<Branch[]>([]);
   readonly students = signal<Student[]>([]);
   readonly coaches = signal<Coach[]>([]);
   readonly studentStatus = signal<Record<string, AttendanceStatus>>({});
@@ -131,15 +133,21 @@ export class AttendanceComponent implements OnInit {
   readonly absenceAlertOpen = signal(false);
   readonly absenceAlerts = signal<AbsenceAlert[]>([]);
   date = new Date().toISOString().slice(0, 10);
+  branchId = '';
   batchId = '';
   constructor(private readonly data: DataService, readonly auth: AuthService, private readonly toast: ToastService) {}
   async ngOnInit(): Promise<void> {
-    const [batches, students, coaches] = await Promise.all([this.data.listMyBatches(), this.data.listStudents('', 'active'), this.data.listCoaches().catch(() => [])]);
-    this.batches.set(batches); this.students.set(students); this.coaches.set(coaches);
+    const [branches, batches, students, coaches] = await Promise.all([this.data.listBranches().catch(() => []), this.data.listMyBatches(), this.data.listStudents('', 'active'), this.data.listCoaches().catch(() => [])]);
+    this.branches.set(branches); this.batches.set(batches); this.students.set(students); this.coaches.set(coaches);
     this.batchId = batches[0]?.id ?? '';
     await this.loadAttendance();
   }
+  filteredBatches(): Batch[] { return this.batches().filter((batch) => !this.branchId || batch.branch_id === this.branchId); }
   filteredStudents(): Student[] { return this.students().filter((student) => student.batch_id === this.batchId); }
+  async onBranchChange(): Promise<void> {
+    this.batchId = this.filteredBatches()[0]?.id ?? '';
+    await this.loadAttendance();
+  }
   async loadAttendance(): Promise<void> {
     if (!this.batchId) return;
     this.loading.set(true);

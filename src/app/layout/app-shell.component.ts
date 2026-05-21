@@ -100,6 +100,7 @@ export class AppShellComponent {
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'Students', path: '/students' },
     { label: 'Coaches', path: '/coaches', admin: true },
+    { label: 'Branches', path: '/branches', admin: true },
     { label: 'Batches', path: '/batches' },
     { label: 'Attendance', path: '/attendance' },
     { label: 'Fees', path: '/fees' },

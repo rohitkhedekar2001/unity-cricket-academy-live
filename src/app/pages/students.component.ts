@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DataService } from '../services/data.service';
 import { AuthService } from '../services/auth.service';
-import { Batch, feePackages, FeePackage, Student } from '../models/app.models';
+import { Batch, Branch, feePackages, FeePackage, Student } from '../models/app.models';
 import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
 import { ToastService } from '../services/toast.service';
 
@@ -22,14 +22,18 @@ import { ToastService } from '../services/toast.service';
       </div>
 
       <div class="panel p-4">
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <input class="form-input" placeholder="Search students" [value]="search()" (input)="search.set($any($event.target).value); load()">
           <select class="form-input" [value]="activeFilter()" (change)="activeFilter.set($any($event.target).value); load()">
             <option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option>
           </select>
+          <select *ngIf="auth.isAdmin()" class="form-input" [value]="branchFilter()" (change)="branchFilter.set($any($event.target).value); batchFilter.set(''); load()">
+            <option value="">All branches</option>
+            <option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option>
+          </select>
           <select *ngIf="auth.isAdmin()" class="form-input" [value]="batchFilter()" (change)="batchFilter.set($any($event.target).value); load()">
             <option value="">All batches</option>
-            <option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option>
+            <option *ngFor="let batch of filterBatches()" [value]="batch.id">{{ batch.name }}</option>
           </select>
           <input *ngIf="auth.isAdmin()" class="form-input" placeholder="Age" type="number" min="3" [value]="ageFilter() ?? ''" (input)="setAgeFilter($any($event.target).value)">
           <select *ngIf="auth.isAdmin()" class="form-input" [value]="feeFilter()" (change)="feeFilter.set($any($event.target).value); load()">
@@ -41,13 +45,14 @@ import { ToastService } from '../services/toast.service';
       </div>
 
       <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-soft">
-        <table class="w-full min-w-[760px] text-left text-sm">
+        <table class="w-full min-w-[900px] text-left text-sm">
           <thead class="bg-neutral-950 text-white">
-            <tr><th class="p-3">Name</th><th>Batch</th><th>Fee plan</th><th>Phone</th><th>Status</th><th class="text-right pr-3">Actions</th></tr>
+            <tr><th class="p-3">Name</th><th>Branch</th><th>Batch</th><th>Fee plan</th><th>Phone</th><th>Status</th><th class="text-right pr-3">Actions</th></tr>
           </thead>
           <tbody class="divide-y divide-neutral-100">
             <tr *ngFor="let student of students()" class="transition hover:bg-orange-50/40">
               <td class="p-3 font-bold"><a [routerLink]="['/students', student.id]" class="hover:text-academy-red">{{ student.name }}</a></td>
+              <td>{{ student.batch?.branch?.name || '-' }}</td>
               <td>{{ student.batch?.name || 'Unassigned' }}</td>
               <td>{{ student.fee_plan_name }} &middot; {{ money(student.fee_plan_amount) }}</td>
               <td>{{ student.phone_number || '-' }}</td>
@@ -77,7 +82,8 @@ import { ToastService } from '../services/toast.service';
           <label><span class="form-label">Admission date</span><input class="form-input mt-1" type="date" formControlName="admission_date"></label>
           <label><span class="form-label">School</span><input class="form-input mt-1" formControlName="school_name"></label>
           <label><span class="form-label">Age group</span><input class="form-input mt-1" formControlName="age_group"></label>
-          <label><span class="form-label">Batch</span><select class="form-input mt-1" [class.border-red-500]="invalid('batch_id')" formControlName="batch_id"><option *ngIf="auth.isAdmin()" [ngValue]="null">Unassigned</option><option *ngFor="let batch of batches()" [value]="batch.id">{{ batch.name }}</option></select><small *ngIf="invalid('batch_id')" class="text-xs font-semibold text-red-600">Batch is required for coaches.</small></label>
+          <label *ngIf="auth.isAdmin()"><span class="form-label">Branch</span><select class="form-input mt-1" formControlName="branch_id" (change)="onFormBranchChange()"><option value="">Select branch</option><option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option></select></label>
+          <label><span class="form-label">Batch</span><select class="form-input mt-1" [class.border-red-500]="invalid('batch_id')" formControlName="batch_id"><option *ngIf="auth.isAdmin()" [ngValue]="null">Unassigned</option><option *ngFor="let batch of formBatches()" [value]="batch.id">{{ batch.name }}</option></select><small *ngIf="invalid('batch_id')" class="text-xs font-semibold text-red-600">Batch is required for coaches.</small></label>
           <label><span class="form-label">Fee package</span><select class="form-input mt-1" formControlName="fee_package" (change)="syncFee()"><option *ngFor="let key of feeKeys" [value]="key">{{ feePackages[key].label }} &middot; {{ money(feePackages[key].amount) }}</option></select></label>
           <label><span class="form-label">Fee amount</span><input class="form-input mt-1" type="number" formControlName="fee_plan_amount"></label>
           <label class="md:col-span-2"><span class="form-label">Address</span><textarea class="form-input mt-1" formControlName="address" rows="3"></textarea></label>
@@ -101,6 +107,7 @@ export class StudentsComponent implements OnInit {
   readonly auth = inject(AuthService);
   readonly students = signal<Student[]>([]);
   readonly batches = signal<Batch[]>([]);
+  readonly branches = signal<Branch[]>([]);
   readonly formOpen = signal(false);
   readonly saving = signal(false);
   readonly togglingId = signal<string | null>(null);
@@ -108,6 +115,7 @@ export class StudentsComponent implements OnInit {
   readonly deleteTarget = signal<Student | null>(null);
   readonly search = signal('');
   readonly activeFilter = signal<'all' | 'active' | 'inactive'>('all');
+  readonly branchFilter = signal('');
   readonly batchFilter = signal('');
   readonly ageFilter = signal<number | null>(null);
   readonly feeFilter = signal('');
@@ -127,13 +135,16 @@ export class StudentsComponent implements OnInit {
     fee_plan_amount: [1800, Validators.required],
     school_name: [''],
     age_group: [''],
+    branch_id: [''],
     batch_id: [null as string | null],
     is_active: [true]
   });
 
   async ngOnInit(): Promise<void> {
     this.form.get('dob')?.valueChanges.subscribe((dob) => this.updateAgeFromDob(dob || ''));
-    await this.data.listMyBatches().then((rows) => this.batches.set(rows));
+    const [branches, batches] = await Promise.all([this.data.listBranches().catch(() => []), this.data.listMyBatches()]);
+    this.branches.set(branches);
+    this.batches.set(batches);
     await this.load();
     this.openPrefilledStudentFormFromEnquiry();
   }
@@ -141,9 +152,23 @@ export class StudentsComponent implements OnInit {
   load(): Promise<void> {
     return this.data.listStudents(this.search(), this.activeFilter(), {
       batchId: this.auth.isAdmin() ? this.batchFilter() : undefined,
+      branchId: this.auth.isAdmin() ? this.branchFilter() : undefined,
       age: this.auth.isAdmin() ? this.ageFilter() : null,
       feePackage: this.auth.isAdmin() ? this.feeFilter() : undefined
     }).then((rows) => this.students.set(rows));
+  }
+
+  filterBatches(): Batch[] {
+    return this.batches().filter((batch) => !this.branchFilter() || batch.branch_id === this.branchFilter());
+  }
+
+  formBatches(): Batch[] {
+    const branchId = this.form.value.branch_id;
+    return this.batches().filter((batch) => !branchId || batch.branch_id === branchId);
+  }
+
+  onFormBranchChange(): void {
+    this.form.patchValue({ batch_id: null });
   }
 
   openForm(student?: Student, prefill?: Partial<Student>): void {
@@ -161,7 +186,8 @@ export class StudentsComponent implements OnInit {
       fee_plan_amount: student?.fee_plan_amount ?? prefill?.fee_plan_amount ?? 1800,
       school_name: student?.school_name ?? '',
       age_group: student?.age_group ?? prefill?.age_group ?? '',
-      batch_id: student?.batch_id ?? prefill?.batch_id ?? (this.auth.isAdmin() ? null : this.batches()[0]?.id ?? null),
+      branch_id: student?.batch?.branch_id ?? this.batches().find((batch) => batch.id === (student?.batch_id ?? prefill?.batch_id))?.branch_id ?? this.branchFilter() ?? '',
+      batch_id: student?.batch_id ?? prefill?.batch_id ?? (this.auth.isAdmin() ? null : this.formBatches()[0]?.id ?? this.batches()[0]?.id ?? null),
       is_active: student?.is_active ?? true
     });
     this.updateAgeFromDob(this.form.get('dob')?.value || '', student?.age ?? prefill?.age ?? 0);
@@ -183,7 +209,8 @@ export class StudentsComponent implements OnInit {
     value.date_of_birth = value.dob;
     this.saving.set(true);
     try {
-      await this.data.saveStudent({ ...value, id: value.id || undefined } as Partial<Student>);
+      const { branch_id: _branchId, ...student } = value;
+      await this.data.saveStudent({ ...student, id: value.id || undefined } as Partial<Student>);
       const enquiryId = this.route.snapshot.queryParamMap.get('enquiryId');
       if (enquiryId && !value.id) await this.data.updateEnquiryStatus(enquiryId, 'Converted');
       this.formOpen.set(false);
@@ -235,6 +262,7 @@ export class StudentsComponent implements OnInit {
   clearFilters(): void {
     this.search.set('');
     this.activeFilter.set('all');
+    this.branchFilter.set('');
     this.batchFilter.set('');
     this.ageFilter.set(null);
     this.feeFilter.set('');

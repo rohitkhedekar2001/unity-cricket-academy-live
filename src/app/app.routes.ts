@@ -7,6 +7,7 @@ import { StudentsComponent } from './pages/students.component';
 import { StudentDetailComponent } from './pages/student-detail.component';
 import { CoachesComponent } from './pages/coaches.component';
 import { CoachDetailComponent } from './pages/coach-detail.component';
+import { BranchesComponent } from './pages/branches.component';
 import { BatchesComponent } from './pages/batches.component';
 import { AttendanceComponent } from './pages/attendance.component';
 import { FeesComponent } from './pages/fees.component';
@@ -29,6 +30,7 @@ export const routes: Routes = [
       { path: 'students/:id', component: StudentDetailComponent },
       { path: 'coaches', component: CoachesComponent, canActivate: [adminGuard] },
       { path: 'coaches/:id', component: CoachDetailComponent },
+      { path: 'branches', component: BranchesComponent, canActivate: [adminGuard] },
       { path: 'batches', component: BatchesComponent },
       { path: 'attendance', component: AttendanceComponent },
       { path: 'fees', component: FeesComponent },
