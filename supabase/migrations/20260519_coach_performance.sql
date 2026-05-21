@@ -258,15 +258,27 @@ begin
   select coach_id into point_coach_id from public.batches where id = new.batch_id;
   if new.created_at::date = new.date then
     point_value := 10;
-    note := 'Attendance saved on attendance date';
+    note := 'Batch attendance saved on attendance date for ' || new.date::text;
   elsif new.created_at::date = new.date + 1 then
     point_value := -25;
-    note := 'Attendance saved next day';
+    note := 'Batch attendance saved next day for ' || new.date::text;
   else
     point_value := -50;
-    note := 'Old attendance entered in bulk or late';
+    note := 'Old batch attendance entered in bulk or late for ' || new.date::text;
   end if;
-  perform public.add_coach_credit_point(point_coach_id, 'Attendance', point_value, new.id, 'student_attendance', note, new.created_by);
+
+  if point_coach_id is not null and not exists (
+    select 1
+    from public.coach_credit_points
+    where coach_id = point_coach_id
+      and category = 'Attendance'
+      and reference_id = new.batch_id
+      and reference_type = 'student_attendance_batch'
+      and description = note
+  ) then
+    perform public.add_coach_credit_point(point_coach_id, 'Attendance', point_value, new.batch_id, 'student_attendance_batch', note, new.created_by);
+  end if;
+
   return new;
 end;
 $$;

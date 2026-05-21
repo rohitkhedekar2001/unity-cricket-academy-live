@@ -80,6 +80,10 @@ create table if not exists public.fees (
   amount int not null check (amount >= 0),
   fee_plan_name text not null,
   fee_plan_amount int not null check (fee_plan_amount >= 0),
+  package_months int not null default 1 check (package_months > 0),
+  coverage_start_date date,
+  coverage_end_date date,
+  next_due_date date,
   month text not null check (month ~ '^[0-9]{4}-[0-9]{2}$'),
   paid_date date not null default current_date,
   created_at timestamptz not null default now()
@@ -224,6 +228,7 @@ create unique index if not exists uq_students_phone_number on public.students(ph
 create index if not exists idx_student_attendance_batch_date on public.student_attendance(batch_id, date);
 create index if not exists idx_coach_attendance_date on public.coach_attendance(date);
 create index if not exists idx_fees_student_month on public.fees(student_id, month);
+create index if not exists idx_fees_student_coverage on public.fees(student_id, coverage_start_date, coverage_end_date);
 create index if not exists idx_salaries_coach_month on public.salaries(coach_id, month);
 create index if not exists idx_matches_datetime on public.matches(match_datetime);
 create index if not exists idx_matches_status on public.matches(status);

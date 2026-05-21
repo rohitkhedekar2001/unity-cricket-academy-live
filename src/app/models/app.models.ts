@@ -94,6 +94,10 @@ export interface Fee {
   amount: number;
   fee_plan_name: string;
   fee_plan_amount: number;
+  package_months: number | null;
+  coverage_start_date: string | null;
+  coverage_end_date: string | null;
+  next_due_date: string | null;
   month: string;
   paid_date: string;
 }

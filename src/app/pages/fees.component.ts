@@ -15,6 +15,10 @@ interface FeeStatusRow {
   pendingAmount: number;
   paymentDate: string;
   status: 'Paid' | 'Partial' | 'Pending';
+  coverageLabel: string;
+  coverageStart: string;
+  coverageEnd: string;
+  nextDueDate: string;
   fees: Fee[];
 }
 
@@ -70,29 +74,49 @@ interface FeeStatusRow {
 
       <section class="panel overflow-hidden">
         <div *ngIf="loading()" class="p-6 text-center text-sm font-bold text-neutral-500">Loading fee details...</div>
-        <table *ngIf="!loading()" class="w-full min-w-[940px] text-left text-sm">
-          <thead class="bg-neutral-950 text-white">
-            <tr><th class="p-3">Student Name</th><th>Batch</th><th class="text-right">Fee Amount</th><th class="text-right">Paid Amount</th><th class="text-right">Pending Amount</th><th>Payment Date</th><th>Payment Status</th><th class="pr-3 text-right">Action</th></tr>
-          </thead>
-          <tbody class="divide-y divide-neutral-100">
-            <tr *ngIf="visibleRows().length === 0"><td colspan="8" class="p-5 text-center font-semibold text-neutral-500">{{ activeTab() === 'paid' ? 'No paid fee records found.' : 'No pending students found.' }}</td></tr>
-            <tr *ngFor="let row of visibleRows()" class="transition hover:bg-orange-50/40">
-              <td class="p-3 font-bold">{{ row.student.name }}</td>
-              <td>{{ row.batchName }}</td>
-              <td class="text-right">{{ money(row.expectedAmount) }}</td>
-              <td class="text-right font-bold text-green-700">{{ money(row.paidAmount) }}</td>
-              <td class="text-right font-bold" [class.text-academy-red]="row.pendingAmount > 0">{{ money(row.pendingAmount) }}</td>
-              <td>{{ row.paymentDate || '-' }}</td>
-              <td><span class="badge" [ngClass]="statusClass(row.status)">{{ row.status }}</span></td>
-              <td class="space-x-2 pr-3 text-right">
-                <button class="btn-secondary !px-3" (click)="openFormForStudent(row.student)">Add</button>
-                <a *ngIf="row.pendingAmount > 0" class="btn-primary !px-3" [class.pointer-events-none]="!row.student.phone_number" [class.opacity-50]="!row.student.phone_number" [href]="feeReminderLink(row)" target="_blank" rel="noopener">WhatsApp</a>
-                <button *ngIf="row.fees[0]" class="btn-secondary !px-3" (click)="openForm(row.fees[0])">Edit</button>
-                <button *ngIf="auth.isAdmin() && row.fees[0]" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(row.fees[0])">Delete</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div *ngIf="!loading()" class="overflow-x-auto">
+          <table class="w-full min-w-[1360px] border-separate border-spacing-0 text-left text-sm">
+            <thead class="bg-neutral-950 text-white">
+              <tr>
+                <th class="w-52 whitespace-nowrap px-4 py-3">Student Name</th>
+                <th class="w-40 whitespace-nowrap px-4 py-3">Batch</th>
+                <th class="w-32 whitespace-nowrap px-4 py-3 text-right">Fee Amount</th>
+                <th class="w-32 whitespace-nowrap px-4 py-3 text-right">Paid Amount</th>
+                <th class="w-36 whitespace-nowrap px-4 py-3 text-right">Pending Amount</th>
+                <th class="w-80 whitespace-nowrap px-4 py-3">Coverage Period</th>
+                <th class="w-36 whitespace-nowrap px-4 py-3">Next Due</th>
+                <th class="w-36 whitespace-nowrap px-4 py-3">Status</th>
+                <th class="w-56 whitespace-nowrap px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-neutral-100 bg-white">
+              <tr *ngIf="visibleRows().length === 0"><td colspan="9" class="p-6 text-center font-semibold text-neutral-500">{{ activeTab() === 'paid' ? 'No paid fee records found.' : 'No pending students found.' }}</td></tr>
+              <tr *ngFor="let row of visibleRows()" class="transition hover:bg-orange-50/40">
+                <td class="px-4 py-3 align-middle font-bold text-neutral-950">{{ row.student.name }}</td>
+                <td class="px-4 py-3 align-middle text-neutral-700">{{ row.batchName }}</td>
+                <td class="px-4 py-3 text-right align-middle font-semibold">{{ money(row.expectedAmount) }}</td>
+                <td class="px-4 py-3 text-right align-middle font-black text-green-700">{{ money(row.paidAmount) }}</td>
+                <td class="px-4 py-3 text-right align-middle font-black" [class.text-academy-red]="row.pendingAmount > 0">{{ money(row.pendingAmount) }}</td>
+                <td class="px-4 py-3 align-middle">
+                  <div class="min-w-[280px] rounded-lg bg-orange-50 px-3 py-2">
+                    <p class="font-black leading-5 text-neutral-950">{{ coveragePeriod(row) || '-' }}</p>
+                    <p class="mt-1 text-xs font-semibold text-neutral-500">{{ row.paymentDate ? 'Paid on ' + displayDate(row.paymentDate) : 'No payment yet' }}</p>
+                  </div>
+                </td>
+                <td class="whitespace-nowrap px-4 py-3 align-middle font-semibold">{{ displayDate(row.nextDueDate) }}</td>
+                <td class="px-4 py-3 align-middle"><span class="badge" [ngClass]="statusClass(row.status)">{{ row.status }}</span></td>
+                <td class="px-4 py-3 align-middle">
+                  <div class="flex flex-wrap justify-end gap-2">
+                    <button class="btn-secondary !px-3 !py-2" (click)="openFormForStudent(row.student)">Add</button>
+                    <a *ngIf="row.pendingAmount > 0" class="btn-primary !px-3 !py-2" [class.pointer-events-none]="!row.student.phone_number" [class.opacity-50]="!row.student.phone_number" [href]="feeReminderLink(row)" target="_blank" rel="noopener">WhatsApp</a>
+                    <button *ngIf="row.fees[0]" class="btn-secondary !px-3 !py-2" (click)="openForm(row.fees[0])">Edit</button>
+                    <button *ngIf="auth.isAdmin() && row.fees[0]" class="btn-danger !px-3 !py-2" [disabled]="deleting()" (click)="askDelete(row.fees[0])">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section class="panel overflow-hidden">
@@ -100,21 +124,27 @@ interface FeeStatusRow {
           <h3 class="font-black">Payment Records</h3>
           <p class="text-sm text-neutral-500">Individual fee entries for the selected month and batch.</p>
         </div>
-        <table class="w-full min-w-[820px] text-left text-sm">
-          <thead class="bg-neutral-950 text-white"><tr><th class="p-3">Student</th><th>Batch</th><th>Month</th><th>Plan</th><th>Paid date</th><th class="text-right">Amount</th><th class="pr-3 text-right">Action</th></tr></thead>
-          <tbody class="divide-y divide-neutral-100">
-            <tr *ngIf="visibleFees().length === 0"><td colspan="7" class="p-4 text-center font-semibold text-neutral-500">No payment records found.</td></tr>
-            <tr *ngFor="let fee of visibleFees()" class="transition hover:bg-orange-50/40">
-              <td class="p-3 font-bold">{{ studentName(fee.student_id) }}</td>
-              <td>{{ batchName(studentById(fee.student_id)?.batch_id ?? null) }}</td>
-              <td>{{ fee.month }}</td>
-              <td>{{ fee.fee_plan_name }}</td>
-              <td>{{ fee.paid_date }}</td>
-              <td class="text-right font-bold text-academy-red">{{ money(fee.amount) }}</td>
-              <td class="space-x-2 pr-3 text-right"><button class="btn-secondary !px-3" (click)="openForm(fee)">Edit</button><button *ngIf="auth.isAdmin()" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(fee)">Delete</button></td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[1180px] border-separate border-spacing-0 text-left text-sm">
+            <thead class="bg-neutral-950 text-white"><tr><th class="w-52 whitespace-nowrap px-4 py-3">Student</th><th class="w-40 whitespace-nowrap px-4 py-3">Batch</th><th class="w-28 whitespace-nowrap px-4 py-3">Month</th><th class="w-44 whitespace-nowrap px-4 py-3">Plan</th><th class="w-80 whitespace-nowrap px-4 py-3">Coverage</th><th class="w-36 whitespace-nowrap px-4 py-3">Next Due</th><th class="w-36 whitespace-nowrap px-4 py-3">Paid Date</th><th class="w-32 whitespace-nowrap px-4 py-3 text-right">Amount</th><th class="w-40 whitespace-nowrap px-4 py-3 text-right">Action</th></tr></thead>
+            <tbody class="divide-y divide-neutral-100 bg-white">
+              <tr *ngIf="visibleFees().length === 0"><td colspan="9" class="p-5 text-center font-semibold text-neutral-500">No payment records found.</td></tr>
+              <tr *ngFor="let fee of visibleFees()" class="transition hover:bg-orange-50/40">
+                <td class="px-4 py-3 align-middle font-bold text-neutral-950">{{ studentName(fee.student_id) }}</td>
+                <td class="px-4 py-3 align-middle text-neutral-700">{{ batchName(studentById(fee.student_id)?.batch_id ?? null) }}</td>
+                <td class="whitespace-nowrap px-4 py-3 align-middle">{{ fee.month }}</td>
+                <td class="px-4 py-3 align-middle">{{ fee.fee_plan_name }}</td>
+                <td class="px-4 py-3 align-middle">
+                  <div class="min-w-[280px] rounded-lg bg-orange-50 px-3 py-2 font-bold text-neutral-950">{{ feeCoverageLabel(fee) }}</div>
+                </td>
+                <td class="whitespace-nowrap px-4 py-3 align-middle font-semibold">{{ displayDate(feeNextDueDate(fee)) }}</td>
+                <td class="whitespace-nowrap px-4 py-3 align-middle">{{ displayDate(fee.paid_date) }}</td>
+                <td class="px-4 py-3 text-right align-middle font-bold text-academy-red">{{ money(fee.amount) }}</td>
+                <td class="px-4 py-3 align-middle"><div class="flex justify-end gap-2"><button class="btn-secondary !px-3 !py-2" (click)="openForm(fee)">Edit</button><button *ngIf="auth.isAdmin()" class="btn-danger !px-3 !py-2" [disabled]="deleting()" (click)="askDelete(fee)">Delete</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
     </section>
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4">
@@ -127,6 +157,10 @@ interface FeeStatusRow {
           <label class="block"><span class="form-label">Month</span><input class="form-input mt-1" [class.border-red-500]="invalid('month')" type="month" formControlName="month"><small *ngIf="invalid('month')" class="text-xs font-semibold text-red-600">Month is required.</small></label>
           <label class="block"><span class="form-label">Amount</span><input class="form-input mt-1" [class.border-red-500]="invalid('amount')" type="number" formControlName="amount"><small *ngIf="invalid('amount')" class="text-xs font-semibold text-red-600">Amount is required.</small></label>
           <label class="block"><span class="form-label">Paid date</span><input class="form-input mt-1" [class.border-red-500]="invalid('paid_date')" type="date" formControlName="paid_date"><small *ngIf="invalid('paid_date')" class="text-xs font-semibold text-red-600">Paid date is required.</small></label>
+          <div class="rounded-lg bg-orange-50 p-3 text-sm text-neutral-700">
+            <p class="font-black text-neutral-950">Coverage preview</p>
+            <p>{{ formCoveragePreview() }}</p>
+          </div>
         </div>
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
         <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save fee' }}</button></div>
@@ -157,7 +191,7 @@ export class FeesComponent implements OnInit {
   readonly search = signal('');
   readonly feePackages = feePackages;
   readonly feeKeys = Object.keys(feePackages) as FeePackage[];
-  readonly form = this.fb.group({ id: [''], batch_id: ['', Validators.required], student_id: ['', Validators.required], fee_package: ['Monthly1800' as FeePackage], amount: [1800, Validators.required], fee_plan_name: ['Monthly'], fee_plan_amount: [1800], month: [new Date().toISOString().slice(0, 7), Validators.required], paid_date: [new Date().toISOString().slice(0, 10), Validators.required] });
+  readonly form = this.fb.group({ id: [''], batch_id: ['', Validators.required], student_id: ['', Validators.required], fee_package: ['Monthly1800' as FeePackage], amount: [1800, Validators.required], fee_plan_name: ['Monthly'], fee_plan_amount: [1800], package_months: [1], coverage_start_date: [''], coverage_end_date: [''], next_due_date: [''], month: [new Date().toISOString().slice(0, 7), Validators.required], paid_date: [new Date().toISOString().slice(0, 10), Validators.required] });
 
   readonly visibleStudents = computed(() => {
     const batchId = this.selectedBatch();
@@ -175,10 +209,12 @@ export class FeesComponent implements OnInit {
   });
 
   readonly feeRows = computed<FeeStatusRow[]>(() => this.visibleStudents().map((student) => {
-    const fees = this.visibleFees().filter((fee) => fee.student_id === student.id);
+    const fees = this.coveringFees(student.id, this.selectedMonth());
     const paidAmount = fees.reduce((total, fee) => total + (fee.amount || 0), 0);
-    const expectedAmount = student.fee_plan_amount || fees[0]?.fee_plan_amount || 0;
+    const expectedAmount = fees.length ? Math.max(...fees.map((fee) => fee.fee_plan_amount || 0), student.fee_plan_amount || 0) : student.fee_plan_amount || 0;
     const pendingAmount = Math.max(expectedAmount - paidAmount, 0);
+    const latestFee = this.latestFee(fees);
+    const coverage = latestFee ? this.normalizedCoverage(latestFee) : null;
     return {
       student,
       batchName: this.batchName(student.batch_id),
@@ -187,6 +223,10 @@ export class FeesComponent implements OnInit {
       pendingAmount,
       paymentDate: fees.map((fee) => fee.paid_date).sort().reverse()[0] ?? '',
       status: pendingAmount === 0 && paidAmount > 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Pending',
+      coverageLabel: coverage ? `Paid for ${this.displayMonth(coverage.start)} to ${this.displayMonth(coverage.end)}` : '',
+      coverageStart: coverage?.start ?? '',
+      coverageEnd: coverage?.end ?? '',
+      nextDueDate: latestFee?.next_due_date || coverage?.nextDueDate || '',
       fees
     };
   }));
@@ -223,6 +263,10 @@ export class FeesComponent implements OnInit {
       amount: fee?.amount ?? 1800,
       fee_plan_name: fee?.fee_plan_name ?? 'Monthly',
       fee_plan_amount: fee?.fee_plan_amount ?? 1800,
+      package_months: fee ? this.inferPackageMonths(fee) : this.feePackageMonths('Monthly1800'),
+      coverage_start_date: fee?.coverage_start_date ?? '',
+      coverage_end_date: fee?.coverage_end_date ?? '',
+      next_due_date: fee?.next_due_date ?? '',
       month: fee?.month ?? new Date().toISOString().slice(0, 7),
       paid_date: fee?.paid_date ?? new Date().toISOString().slice(0, 10)
     });
@@ -238,6 +282,10 @@ export class FeesComponent implements OnInit {
       amount: student.fee_plan_amount ?? 0,
       fee_plan_name: student.fee_plan_name ?? feePackages[student.fee_package ?? 'Monthly1800'].label,
       fee_plan_amount: student.fee_plan_amount ?? 0,
+      package_months: this.feePackageMonths(student.fee_package ?? 'Monthly1800'),
+      coverage_start_date: '',
+      coverage_end_date: '',
+      next_due_date: '',
       month: this.selectedMonth(),
       paid_date: new Date().toISOString().slice(0, 10)
     });
@@ -246,7 +294,7 @@ export class FeesComponent implements OnInit {
   }
   filteredStudents(): Student[] { return this.students().filter((student) => student.batch_id === this.form.value.batch_id); }
   onBatchChange(): void { this.form.patchValue({ student_id: this.filteredStudents()[0]?.id ?? '' }); }
-  syncFee(): void { const selected = feePackages[this.form.value.fee_package as FeePackage]; this.form.patchValue({ amount: selected.amount, fee_plan_name: selected.label, fee_plan_amount: selected.amount }); }
+  syncFee(): void { const selected = feePackages[this.form.value.fee_package as FeePackage]; const months = this.feePackageMonths(this.form.value.fee_package as FeePackage); this.form.patchValue({ amount: selected.amount, fee_plan_name: selected.label, fee_plan_amount: selected.amount, package_months: months }); }
   async save(): Promise<void> {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
@@ -254,7 +302,15 @@ export class FeesComponent implements OnInit {
     this.saving.set(true);
     try {
       const { batch_id: _batchId, ...fee } = value;
-      await this.data.saveFee({ ...fee, id: value.id || undefined } as Partial<Fee>);
+      const coverage = this.calculateCoverage(value.month || new Date().toISOString().slice(0, 7), this.feePackageMonths(value.fee_package as FeePackage));
+      await this.data.saveFee({
+        ...fee,
+        id: value.id || undefined,
+        package_months: coverage.packageMonths,
+        coverage_start_date: coverage.startDate,
+        coverage_end_date: coverage.endDate,
+        next_due_date: coverage.nextDueDate
+      } as Partial<Fee>);
       this.formOpen.set(false);
       this.fees.set(await this.data.listFees());
       this.toast.success('Fee saved successfully.');
@@ -295,6 +351,28 @@ export class FeesComponent implements OnInit {
   studentName(id: string): string { return this.students().find((student) => student.id === id)?.name ?? 'Student'; }
   studentById(id: string): Student | undefined { return this.students().find((student) => student.id === id); }
   batchName(id: string | null): string { return this.batches().find((batch) => batch.id === id)?.name ?? 'Unassigned'; }
+  feeCoverageLabel(fee: Fee): string {
+    const coverage = this.normalizedCoverage(fee);
+    return `${this.displayDate(coverage.start)} to ${this.displayDate(coverage.end)}`;
+  }
+  feeNextDueDate(fee: Fee): string {
+    return this.normalizedCoverage(fee).nextDueDate;
+  }
+  coveragePeriod(row: FeeStatusRow): string {
+    if (row.coverageStart && row.coverageEnd) {
+      return `${this.displayDate(row.coverageStart)} to ${this.displayDate(row.coverageEnd)}`;
+    }
+    return row.coverageLabel;
+  }
+  displayDate(value: string): string {
+    if (!value) return '-';
+    return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
+  }
+  formCoveragePreview(): string {
+    const month = this.form.value.month || new Date().toISOString().slice(0, 7);
+    const coverage = this.calculateCoverage(month, this.feePackageMonths(this.form.value.fee_package as FeePackage));
+    return `This payment covers ${this.displayDate(coverage.startDate)} to ${this.displayDate(coverage.endDate)}. Next due date: ${this.displayDate(coverage.nextDueDate)}.`;
+  }
   statusClass(status: FeeStatusRow['status']): string {
     if (status === 'Paid') return 'bg-green-100 text-green-800';
     if (status === 'Partial') return 'bg-orange-100 text-orange-800';
@@ -345,17 +423,18 @@ export class FeesComponent implements OnInit {
 
   private reportRows(batchId: string): FeeStatusRow[] {
     const search = this.search().trim().toLowerCase();
-    const feesForMonth = this.fees().filter((fee) => fee.month === this.selectedMonth());
     return this.students().filter((student) => {
       const matchesBatch = !batchId || student.batch_id === batchId;
       const matchesSearch = !search || student.name.toLowerCase().includes(search);
       return matchesBatch && matchesSearch;
     }).map((student): FeeStatusRow => {
-      const fees = feesForMonth.filter((fee) => fee.student_id === student.id);
+      const fees = this.coveringFees(student.id, this.selectedMonth());
       const paidAmount = fees.reduce((total, fee) => total + (fee.amount || 0), 0);
-      const expectedAmount = student.fee_plan_amount || fees[0]?.fee_plan_amount || 0;
+      const expectedAmount = fees.length ? Math.max(...fees.map((fee) => fee.fee_plan_amount || 0), student.fee_plan_amount || 0) : student.fee_plan_amount || 0;
       const pendingAmount = Math.max(expectedAmount - paidAmount, 0);
       const status: FeeStatusRow['status'] = pendingAmount === 0 && paidAmount > 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Pending';
+      const latestFee = this.latestFee(fees);
+      const coverage = latestFee ? this.normalizedCoverage(latestFee) : null;
       return {
         student,
         batchName: this.batchName(student.batch_id),
@@ -364,9 +443,105 @@ export class FeesComponent implements OnInit {
         pendingAmount,
         paymentDate: fees.map((fee) => fee.paid_date).sort().reverse()[0] ?? '',
         status,
+        coverageLabel: coverage ? `Paid for ${this.displayMonth(coverage.start)} to ${this.displayMonth(coverage.end)}` : '',
+        coverageStart: coverage?.start ?? '',
+        coverageEnd: coverage?.end ?? '',
+        nextDueDate: latestFee?.next_due_date || coverage?.nextDueDate || '',
         fees
       };
     });
+  }
+
+  private coveringFees(studentId: string, month: string): Fee[] {
+    return this.fees()
+      .filter((fee) => fee.student_id === studentId)
+      .filter((fee) => {
+        const coverage = this.normalizedCoverage(fee);
+        return month >= coverage.start.slice(0, 7) && month <= coverage.end.slice(0, 7);
+      });
+  }
+
+  private latestFee(fees: Fee[]): Fee | null {
+    return [...fees].sort((left, right) => (right.paid_date || '').localeCompare(left.paid_date || ''))[0] ?? null;
+  }
+
+  private normalizedCoverage(fee: Fee): { start: string; end: string; nextDueDate: string } {
+    const packageMonths = this.inferPackageMonths(fee);
+    const fallback = this.calculateCoverage(fee.month, packageMonths);
+    const storedStart = fee.coverage_start_date || fallback.startDate;
+    const storedEnd = fee.coverage_end_date || fallback.endDate;
+    const storedMonths = this.coverageMonthCount(storedStart, storedEnd);
+    if (storedMonths < packageMonths) {
+      return {
+        start: fallback.startDate,
+        end: fallback.endDate,
+        nextDueDate: fallback.nextDueDate
+      };
+    }
+    return {
+      start: storedStart,
+      end: storedEnd,
+      nextDueDate: fee.next_due_date || this.nextDateAfter(storedEnd)
+    };
+  }
+
+  calculateCoverage(month: string, packageMonths: number): { packageMonths: number; startDate: string; endDate: string; nextDueDate: string } {
+    const [year, monthNumber] = month.split('-').map(Number);
+    const start = new Date(year, monthNumber - 1, 1);
+    const nextDue = new Date(year, monthNumber - 1 + packageMonths, 1);
+    const end = new Date(nextDue);
+    end.setDate(end.getDate() - 1);
+    return {
+      packageMonths,
+      startDate: this.formatDate(start),
+      endDate: this.formatDate(end),
+      nextDueDate: this.formatDate(nextDue)
+    };
+  }
+
+  feePackageMonths(packageName: FeePackage): number {
+    const months: Record<FeePackage, number> = {
+      Monthly1800: 1,
+      MonthlySummerCamp2500: 1,
+      ThreeMonths4800: 3,
+      SixMonths9000: 6,
+      OneYear15000: 12,
+      Personal5000: 1
+    };
+    return months[packageName] ?? 1;
+  }
+
+  private inferPackageMonths(fee: Fee): number {
+    if (fee.package_months && fee.package_months > 1) return fee.package_months;
+    const text = `${fee.fee_package || ''} ${fee.fee_plan_name || ''}`.toLowerCase();
+    if (text.includes('year') || text.includes('12')) return 12;
+    if (text.includes('six') || text.includes('6')) return 6;
+    if (text.includes('three') || text.includes('3')) return 3;
+    if (fee.fee_plan_amount >= 14000 || fee.amount >= 14000) return 12;
+    if (fee.fee_plan_amount >= 8500 || fee.amount >= 8500) return 6;
+    if (fee.fee_plan_amount >= 4500 || fee.amount >= 4500) return 3;
+    return this.feePackageMonths(fee.fee_package);
+  }
+
+  private coverageMonthCount(start: string, end: string): number {
+    const [startYear, startMonth] = start.slice(0, 7).split('-').map(Number);
+    const [endYear, endMonth] = end.slice(0, 7).split('-').map(Number);
+    return (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
+  }
+
+  private nextDateAfter(value: string): string {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + 1);
+    return this.formatDate(date);
+  }
+
+  private displayMonth(value: string): string {
+    return new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' }).format(new Date(`${value.slice(0, 7)}-01T00:00:00`));
+  }
+
+  private formatDate(value: Date): string {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
 
   private async loadLogo(): Promise<HTMLImageElement | null> {
@@ -500,8 +675,8 @@ export class FeesComponent implements OnInit {
   }
 
   private feeReportTable(ctx: CanvasRenderingContext2D, x: number, y: number, rows: FeeStatusRow[]): number {
-    const headers = ['#', 'Student', 'Fee', 'Paid', 'Pending', 'Date', 'Status'];
-    const widths = [34, 210, 92, 92, 96, 108, 86];
+    const headers = ['#', 'Student', 'Package', 'Paid', 'Pending', 'Pay Date', 'Coverage', 'Next'];
+    const widths = [28, 145, 82, 78, 82, 82, 145, 76];
     let currentX = x;
     ctx.fillStyle = '#111111';
     ctx.fillRect(x, y, widths.reduce((sum, width) => sum + width, 0), 38);
@@ -517,11 +692,12 @@ export class FeesComponent implements OnInit {
       const values = [
         String(index + 1),
         row.student.name,
-        this.inrText(row.expectedAmount),
+        this.truncate(row.fees[0]?.fee_plan_name || row.student.fee_plan_name || 'Fee', 14),
         this.inrText(row.paidAmount),
         this.inrText(row.pendingAmount),
         row.paymentDate || '-',
-        row.status
+        row.coverageLabel || '-',
+        row.nextDueDate || '-'
       ];
       values.forEach((value, col) => {
         const color = col === 3 ? '#15803d' : col === 4 && row.pendingAmount > 0 ? '#dc2626' : '#111827';
