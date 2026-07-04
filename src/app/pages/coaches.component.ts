@@ -44,7 +44,7 @@ import { ToastService } from '../services/toast.service';
             <p><span class="form-label block">Phone</span>{{ coach.phone_number || '-' }}</p>
             <p><span class="form-label block">DOB</span>{{ coach.date_of_birth || '-' }}</p>
           </div>
-          <div class="mt-4 flex gap-2">
+          <div class="mt-4 grid gap-2 sm:grid-cols-3">
             <button class="btn-secondary flex-1" (click)="openForm(coach)">Edit</button>
             <button class="btn-secondary flex-1" [disabled]="togglingId() === coach.id" (click)="toggleActive(coach)">{{ togglingId() === coach.id ? 'Saving...' : (coach.is_active ? 'Deactivate' : 'Activate') }}</button>
             <button class="btn-danger flex-1" (click)="deleteTarget.set(coach)">Delete</button>
@@ -55,7 +55,7 @@ import { ToastService } from '../services/toast.service';
     </section>
 
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 overflow-auto bg-black/55 p-4">
-      <form class="mx-auto my-6 max-w-2xl rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel mx-auto my-6 max-w-2xl" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ editingId() ? 'Edit coach' : 'Add coach account' }}</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <label><span class="form-label">Name</span><input class="form-input mt-1" [class.border-red-500]="invalid('name')" formControlName="name"><small *ngIf="invalid('name')" class="text-xs font-semibold text-red-600">Coach name is required.</small></label>
@@ -68,7 +68,7 @@ import { ToastService } from '../services/toast.service';
           <label class="flex items-center gap-3 pt-6"><input type="checkbox" formControlName="has_admin_access" class="h-5 w-5"> <span class="text-sm font-semibold">Allow admin access</span></label>
         </div>
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
-        <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save coach' }}</button></div>
+        <div class="mobile-actions mt-5"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save coach' }}</button></div>
       </form>
     </div>
     <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteTarget()?.profile?.name || 'coach'" (cancel)="deleteTarget.set(null)" (confirm)="remove()"></app-delete-confirm>

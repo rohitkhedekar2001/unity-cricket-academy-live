@@ -42,8 +42,8 @@ import { Batch, Branch, Coach, Fee, Student } from '../models/app.models';
           <h3 class="font-black text-neutral-950">Recent payments</h3>
           <div class="mt-3 divide-y divide-neutral-100">
             <p *ngIf="filteredFees().length === 0" class="py-4 text-sm text-neutral-500">No fee records yet.</p>
-            <div *ngFor="let fee of filteredFees().slice(0, 8)" class="flex items-center justify-between gap-3 py-3 text-sm">
-              <span class="font-medium">{{ studentName(fee.student_id) }} &middot; {{ fee.month }} &middot; {{ fee.fee_plan_name }}</span>
+            <div *ngFor="let fee of filteredFees().slice(0, 8)" class="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+              <span class="min-w-0 break-words font-medium"><a [routerLink]="['/students', fee.student_id]" class="font-bold transition hover:text-academy-red hover:underline">{{ studentName(fee.student_id) }}</a> &middot; {{ fee.month }} &middot; {{ fee.fee_plan_name }}</span>
               <span class="shrink-0 font-bold text-academy-red">{{ money(fee.amount) }}</span>
             </div>
           </div>
@@ -52,8 +52,8 @@ import { Batch, Branch, Coach, Fee, Student } from '../models/app.models';
           <h3 class="font-black text-neutral-950">Batch strength</h3>
           <div class="mt-3 space-y-3">
             <div *ngFor="let batch of filteredBatches()" class="rounded-lg bg-neutral-50 p-3">
-              <div class="flex justify-between text-sm font-bold">
-                <span>{{ batch.name }}</span>
+              <div class="flex flex-wrap justify-between gap-2 text-sm font-bold">
+                <span class="min-w-0 break-words">{{ batch.name }}</span>
                 <span>{{ batch.students?.length || 0 }} students</span>
               </div>
               <div class="mt-2 h-2 rounded-full bg-neutral-200">

@@ -10,18 +10,18 @@ import { DataService } from '../services/data.service';
   template: `
     <section *ngIf="coach()" class="space-y-5">
       <a routerLink="/coaches" class="text-sm font-bold text-academy-red">Back to coaches</a>
-      <div class="panel p-5">
-        <h2 class="text-3xl font-black">{{ coach()?.profile?.name }}</h2>
-        <p class="text-neutral-500">{{ coach()?.designation }} &middot; {{ coach()?.profile?.email }}</p>
+      <div class="panel p-4 sm:p-5">
+        <h2 class="break-words text-2xl font-black sm:text-3xl">{{ coach()?.profile?.name }}</h2>
+        <p class="break-words text-neutral-500">{{ coach()?.designation }} &middot; {{ coach()?.profile?.email }}</p>
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
         <section class="panel p-4"><h3 class="font-black">Assigned batches</h3><p *ngFor="let batch of batches()" class="mt-3 rounded-lg bg-neutral-50 p-3 text-sm font-semibold">{{ batch.name }} &middot; {{ batch.timing }}</p><p *ngIf="batches().length === 0" class="mt-3 text-sm font-semibold text-neutral-500">No assigned batches.</p></section>
-        <section class="panel p-4"><h3 class="font-black">Assigned students</h3><p *ngFor="let student of students()" class="mt-3 rounded-lg bg-neutral-50 p-3 text-sm font-semibold">{{ student.name }}</p><p *ngIf="students().length === 0" class="mt-3 text-sm font-semibold text-neutral-500">No assigned students.</p></section>
+        <section class="panel p-4"><h3 class="font-black">Assigned students</h3><a *ngFor="let student of students()" [routerLink]="['/students', student.id]" class="mt-3 block rounded-lg bg-neutral-50 p-3 text-sm font-semibold transition hover:bg-orange-50 hover:text-academy-red">{{ student.name }}</a><p *ngIf="students().length === 0" class="mt-3 text-sm font-semibold text-neutral-500">No assigned students.</p></section>
         <section class="panel p-4"><h3 class="font-black">Salary history</h3><div *ngFor="let salary of salaries()" class="mt-3 rounded-lg bg-neutral-50 p-3 text-sm"><b>{{ salary.month }}</b><span class="float-right">{{ money(salary.grand_total_salary ?? salary.final_salary) }}</span><p class="text-neutral-500">Leaves {{ salary.leave_taken ?? salary.leaves }} &middot; Deduction {{ money(salary.leave_deduction ?? salary.deduction) }}</p></div><p *ngIf="salaries().length === 0" class="mt-3 text-sm font-semibold text-neutral-500">No salary records.</p></section>
       </div>
 
-      <section class="grid gap-4 md:grid-cols-3">
+      <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div class="panel p-4"><p class="form-label">Total Attendance Records</p><p class="mt-1 text-2xl font-black">{{ attendance().length }}</p></div>
         <div class="panel p-4"><p class="form-label">Present Days</p><p class="mt-1 text-2xl font-black text-green-700">{{ presentCount() }}</p></div>
         <div class="panel p-4"><p class="form-label">Absent / Leave Days</p><p class="mt-1 text-2xl font-black text-academy-red">{{ absentCount() }}</p></div>
@@ -32,6 +32,7 @@ import { DataService } from '../services/data.service';
           <h3 class="font-black">Coach Attendance History</h3>
           <p class="text-sm text-neutral-500">Present and absent records saved from the attendance section.</p>
         </div>
+        <div class="table-scroll">
         <table class="w-full min-w-[640px] text-left text-sm">
           <thead class="bg-neutral-950 text-white">
             <tr><th class="p-3">Date</th><th>Status</th><th>Marked By</th></tr>
@@ -45,6 +46,7 @@ import { DataService } from '../services/data.service';
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
     </section>
   `

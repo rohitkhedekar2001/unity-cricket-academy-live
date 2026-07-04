@@ -39,7 +39,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
         </div>
       </section>
 
-      <section class="grid gap-4 md:grid-cols-4">
+      <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div class="panel p-4"><p class="form-label">Pending</p><p class="mt-1 text-2xl font-black text-orange-700">{{ countByStatus('Pending') }}</p></div>
         <div class="panel p-4"><p class="form-label">In Progress</p><p class="mt-1 text-2xl font-black text-blue-700">{{ countByStatus('In Progress') }}</p></div>
         <div class="panel p-4"><p class="form-label">Completed</p><p class="mt-1 text-2xl font-black text-green-700">{{ countByStatus('Completed') }}</p></div>
@@ -106,7 +106,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
                   <p class="mt-1 text-xs font-bold text-neutral-500">{{ comment.profile?.name || 'Staff' }} | {{ displayDateTime(comment.created_at) }}</p>
                 </div>
               </div>
-              <div class="mt-3 flex gap-2">
+              <div class="mt-3 flex flex-col gap-2 sm:flex-row">
                 <input class="form-input" placeholder="Add progress update" [value]="commentValue(task.id)" (input)="setCommentDraft(task.id, $any($event.target).value)">
                 <button class="btn-secondary whitespace-nowrap" [disabled]="saving()" (click)="addComment(task)">Add</button>
               </div>
@@ -126,7 +126,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
     </section>
 
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 overflow-y-auto bg-black/55 p-4">
-      <form class="mx-auto my-6 w-full max-w-4xl rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel mx-auto my-6 max-w-4xl" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Create' }} task</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 grid gap-4 md:grid-cols-2">
           <label><span class="form-label">Task title</span><input class="form-input mt-1" formControlName="title"></label>
@@ -143,7 +143,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
           </div>
         </div>
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
-        <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save task' }}</button></div>
+        <div class="mobile-actions mt-5"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save task' }}</button></div>
       </form>
     </div>
     <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteLabel()" (cancel)="deleteTarget.set(null)" (confirm)="removeTask()"></app-delete-confirm>

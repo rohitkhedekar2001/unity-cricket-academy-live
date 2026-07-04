@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AcademyMatch, Batch, Coach, MatchPlayer, MatchPlayerRole, matchPlayerRoles, matchStatuses, Student } from '../models/app.models';
 import { AuthService } from '../services/auth.service';
 import { DataService } from '../services/data.service';
@@ -19,7 +20,7 @@ type SelectedMatchParticipant = {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DeleteConfirmComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, DeleteConfirmComponent],
   template: `
     <section class="space-y-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -44,7 +45,7 @@ type SelectedMatchParticipant = {
         <button class="btn-secondary mt-3" type="button" (click)="clearFilters()">Clear filters</button>
       </section>
 
-      <section class="grid gap-4 md:grid-cols-4">
+      <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div class="panel p-4"><p class="form-label">Matches</p><p class="mt-1 text-2xl font-black">{{ filteredMatches().length }}</p></div>
         <div class="panel p-4"><p class="form-label">Completed</p><p class="mt-1 text-2xl font-black text-green-700">{{ completedCount() }}</p></div>
         <div class="panel p-4"><p class="form-label">Cancelled</p><p class="mt-1 text-2xl font-black text-academy-red">{{ cancelledCount() }}</p></div>
@@ -79,7 +80,10 @@ type SelectedMatchParticipant = {
                   <tbody class="divide-y divide-neutral-100">
                     <tr *ngIf="!match.players?.length"><td colspan="5" class="p-4 text-center font-semibold text-neutral-500">No players selected.</td></tr>
                     <tr *ngFor="let player of match.players">
-                      <td class="p-3 font-bold">{{ participantName(player) }}</td>
+                      <td class="p-3 font-bold">
+                        <a *ngIf="player.student_id" [routerLink]="['/students', player.student_id]" class="transition hover:text-academy-red hover:underline">{{ participantName(player) }}</a>
+                        <span *ngIf="!player.student_id">{{ participantName(player) }}</span>
+                      </td>
                       <td>{{ participantGroup(player) }}</td>
                       <td>{{ player.role }}</td>
                       <td><button class="rounded-full px-3 py-1 text-xs font-black transition" [ngClass]="player.fee_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'" (click)="toggleFee(player)">{{ player.fee_status }}</button></td>
@@ -104,7 +108,7 @@ type SelectedMatchParticipant = {
                   <p class="mt-1 text-xs font-bold text-neutral-500">{{ note.profile?.name || 'Staff' }} | {{ displayDate(note.created_at) }}</p>
                 </div>
               </div>
-              <div class="mt-3 flex gap-2">
+              <div class="mt-3 flex flex-col gap-2 sm:flex-row">
                 <input class="form-input" placeholder="Add note" [value]="noteValue(match.id)" (input)="setNoteDraft(match.id, $any($event.target).value)">
                 <button class="btn-secondary whitespace-nowrap" [disabled]="saving()" (click)="addNote(match)">Add</button>
               </div>
@@ -122,7 +126,7 @@ type SelectedMatchParticipant = {
     </section>
 
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 overflow-y-auto bg-black/55 p-4">
-      <form class="mx-auto my-6 w-full max-w-5xl rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel mx-auto my-6 max-w-5xl" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Create' }} match</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 grid gap-4 md:grid-cols-3">
           <label><span class="form-label">Opponent team</span><input class="form-input mt-1" formControlName="opponent_team"></label>
@@ -144,7 +148,7 @@ type SelectedMatchParticipant = {
             <div class="max-h-96 overflow-auto rounded-lg border border-neutral-200">
               <p *ngIf="!playerBatchFilter()" class="p-4 text-sm font-semibold text-neutral-500">Select a batch to view all active students from that batch.</p>
               <p *ngIf="playerBatchFilter() && batchStudents().length === 0" class="p-4 text-sm font-semibold text-neutral-500">No active students found in this batch.</p>
-              <div *ngFor="let student of batchStudents()" class="grid gap-2 border-b border-neutral-100 p-3 md:grid-cols-[1fr_160px_110px]">
+              <div *ngFor="let student of batchStudents()" class="grid gap-2 border-b border-neutral-100 p-3 sm:grid-cols-[1fr_160px_110px]">
                 <label class="flex items-center gap-2 font-bold"><input type="checkbox" [checked]="isStudentSelected(student.id)" (change)="toggleStudentPlayer(student)"> {{ student.name }} <span class="text-xs text-neutral-500">({{ batchName(student.batch_id) }})</span></label>
                 <select class="form-input" [disabled]="!isStudentSelected(student.id)" [value]="playerRole(studentKey(student.id))" (change)="setPlayerRole(studentKey(student.id), $any($event.target).value)">
                   <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
@@ -158,7 +162,7 @@ type SelectedMatchParticipant = {
             <div *ngIf="canSelectCoachPlayers()" class="mt-4">
               <p class="form-label mb-2">Coach players for Senior/Intrasquad</p>
               <div class="max-h-64 overflow-auto rounded-lg border border-neutral-200">
-                <div *ngFor="let coach of coaches()" class="grid gap-2 border-b border-neutral-100 p-3 md:grid-cols-[1fr_160px_110px]">
+                <div *ngFor="let coach of coaches()" class="grid gap-2 border-b border-neutral-100 p-3 sm:grid-cols-[1fr_160px_110px]">
                   <label class="flex items-center gap-2 font-bold"><input type="checkbox" [checked]="isCoachPlayerSelected(coach.id)" (change)="toggleCoachPlayer(coach)"> {{ coach.profile?.name }} <span class="text-xs text-neutral-500">({{ coach.designation }})</span></label>
                   <select class="form-input" [disabled]="!isCoachPlayerSelected(coach.id)" [value]="playerRole(coachKey(coach.id))" (change)="setPlayerRole(coachKey(coach.id), $any($event.target).value)">
                     <option *ngFor="let role of roles" [value]="role">{{ role }}</option>
@@ -185,7 +189,7 @@ type SelectedMatchParticipant = {
         </section>
 
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
-        <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save match' }}</button></div>
+        <div class="mobile-actions mt-5"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save match' }}</button></div>
       </form>
     </div>
     <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteLabel()" (cancel)="deleteTarget.set(null)" (confirm)="removeMatch()"></app-delete-confirm>

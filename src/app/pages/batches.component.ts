@@ -37,7 +37,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
       </div>
     </section>
     <div *ngIf="selected()" class="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4">
-      <section class="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+      <section class="modal-panel max-w-lg">
         <div class="flex items-center justify-between"><h3 class="text-xl font-black">{{ selected()?.name }}</h3><button class="btn-secondary" (click)="selected.set(null)">Close</button></div>
         <p class="mt-2 text-neutral-600">{{ selected()?.timing }}</p>
         <p class="mt-4"><span class="form-label block">Branch</span>{{ selected()?.branch?.name || 'No branch assigned' }}</p>
@@ -46,7 +46,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
       </section>
     </div>
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4">
-      <form class="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel max-w-lg" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} batch</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 space-y-4">
           <label class="block"><span class="form-label">Name</span><input class="form-input mt-1" [class.border-red-500]="invalid('name')" formControlName="name"><small *ngIf="invalid('name')" class="text-xs font-semibold text-red-600">Batch name is required and must be unique.</small></label>
@@ -55,7 +55,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
           <label class="block"><span class="form-label">Coach</span><select class="form-input mt-1" formControlName="coach_id"><option [ngValue]="null">Unassigned</option><option *ngFor="let coach of coaches()" [value]="coach.id">{{ coach.profile?.name }} &middot; {{ coach.designation }}</option></select></label>
         </div>
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
-        <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save batch' }}</button></div>
+        <div class="mobile-actions mt-5"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save batch' }}</button></div>
       </form>
     </div>
     <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteLabel()" (cancel)="deleteTarget.set(null)" (confirm)="removeBatch()"></app-delete-confirm>

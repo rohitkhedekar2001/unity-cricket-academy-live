@@ -30,7 +30,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
         <button class="btn-primary" (click)="openForm()">Add enquiry</button>
       </div>
 
-      <div class="grid gap-3 md:grid-cols-4">
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <article class="panel p-4">
           <p class="form-label">Total enquiries</p>
           <p class="mt-2 text-3xl font-black">{{ enquiries().length }}</p>
@@ -100,12 +100,14 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
               <td><span class="badge" [ngClass]="statusClass(enquiry.status)">{{ enquiry.status }}</span></td>
               <td>{{ enquiry.visit_date | date: 'dd MMM yyyy' }}</td>
               <td class="max-w-[220px] truncate" [title]="enquiry.remarks || ''">{{ enquiry.remarks || '-' }}</td>
-              <td class="space-x-2 pr-3 text-right">
-                <button class="btn-secondary !px-3" (click)="sendText(enquiry)">Text</button>
-                <button class="btn-secondary !px-3" (click)="openForm(enquiry)">Edit</button>
-                <button *ngIf="auth.isAdmin() && enquiry.status !== 'Closed' && enquiry.status !== 'Converted'" class="btn-secondary !px-3" (click)="setStatus(enquiry, 'Closed')">Close</button>
-                <button *ngIf="canConvert(enquiry)" class="btn-primary !px-3" (click)="convertToStudent(enquiry)">Convert</button>
-                <button *ngIf="auth.isAdmin()" class="btn-danger !px-3" (click)="deleteTarget.set(enquiry)">Delete</button>
+              <td class="pr-3 text-right">
+                <div class="flex justify-end gap-2">
+                  <button class="btn-secondary !px-3" (click)="sendText(enquiry)">Text</button>
+                  <button class="btn-secondary !px-3" (click)="openForm(enquiry)">Edit</button>
+                  <button *ngIf="auth.isAdmin() && enquiry.status !== 'Closed' && enquiry.status !== 'Converted'" class="btn-secondary !px-3" (click)="setStatus(enquiry, 'Closed')">Close</button>
+                  <button *ngIf="canConvert(enquiry)" class="btn-primary !px-3" (click)="convertToStudent(enquiry)">Convert</button>
+                  <button *ngIf="auth.isAdmin()" class="btn-danger !px-3" (click)="deleteTarget.set(enquiry)">Delete</button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -128,7 +130,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
             <div><dt class="form-label">Visit Date</dt><dd class="font-semibold">{{ enquiry.visit_date | date: 'dd MMM yyyy' }}</dd></div>
           </dl>
           <p class="mt-3 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-600">{{ enquiry.remarks || 'No remarks added.' }}</p>
-          <div class="mt-4 grid grid-cols-2 gap-2">
+          <div class="mt-4 grid gap-2 sm:grid-cols-2">
             <button class="btn-secondary" (click)="sendText(enquiry)">Text Message</button>
             <button class="btn-secondary" (click)="openForm(enquiry)">Edit</button>
             <button *ngIf="auth.isAdmin() && enquiry.status !== 'Closed' && enquiry.status !== 'Converted'" class="btn-secondary" (click)="setStatus(enquiry, 'Closed')">Close</button>
@@ -140,7 +142,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
     </section>
 
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 overflow-auto bg-black/55 p-4">
-      <form class="mx-auto my-6 max-w-3xl rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel mx-auto my-6 max-w-3xl" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-xs font-black uppercase text-academy-red">Admission Follow-up</p>
@@ -198,7 +200,7 @@ import { DeleteConfirmComponent } from '../shared/delete-confirm.component';
           </label>
         </div>
 
-        <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div class="mobile-actions mt-5">
           <button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button>
           <button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save enquiry' }}</button>
         </div>

@@ -15,8 +15,9 @@ interface NavItem {
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
   template: `
-    <div class="min-h-screen bg-neutral-100 lg:flex">
-      <aside [class.hidden]="!menuOpen()" class="fixed inset-0 z-30 bg-neutral-950 text-white lg:static lg:block lg:w-72">
+    <div class="min-h-screen overflow-x-hidden bg-neutral-100 lg:flex">
+      <div *ngIf="menuOpen()" class="fixed inset-0 z-20 bg-black/50 lg:hidden" (click)="menuOpen.set(false)"></div>
+      <aside [class.hidden]="!menuOpen()" class="fixed inset-y-0 left-0 z-30 w-[min(18rem,86vw)] bg-neutral-950 text-white shadow-2xl lg:static lg:block lg:w-72 lg:shadow-none">
         <div class="flex h-full flex-col">
           <div class="flex items-center justify-between border-b border-white/10 p-4">
             <div class="flex items-center gap-3">
@@ -26,11 +27,11 @@ interface NavItem {
                 <p class="text-xs text-orange-300">Academy</p>
               </div>
             </div>
-            <button class="lg:hidden" (click)="menuOpen.set(false)" title="Close menu">
+            <button class="rounded-lg border border-white/10 px-3 py-2 text-sm font-black lg:hidden" (click)="menuOpen.set(false)" title="Close menu">
               X
             </button>
           </div>
-          <nav class="flex-1 space-y-1 p-3">
+          <nav class="flex-1 space-y-1 overflow-y-auto p-3">
             <ng-container *ngFor="let item of nav">
               <a *ngIf="!item.children" [routerLink]="item.path || '/'" routerLinkActive="bg-white/10 text-orange-300"
                 class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
@@ -62,27 +63,27 @@ interface NavItem {
       </aside>
 
       <section class="min-w-0 flex-1">
-        <header class="sticky top-0 z-20 flex items-center justify-between border-b border-neutral-200 bg-white/90 px-4 py-3 backdrop-blur">
+        <header class="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-neutral-200 bg-white/90 px-3 py-3 backdrop-blur sm:px-4">
           <button class="btn-secondary lg:hidden" (click)="menuOpen.set(true)" title="Open menu">
             Menu
           </button>
-          <div>
+          <div class="min-w-0 flex-1">
             <p class="text-xs font-bold uppercase text-academy-red">Unity Cricket Academy</p>
-            <h1 class="text-lg font-black text-neutral-950">Management Console</h1>
+            <h1 class="truncate text-base font-black text-neutral-950 sm:text-lg">Management Console</h1>
           </div>
-          <span class="badge bg-orange-100 text-orange-800">{{ auth.profile()?.role }}</span>
+          <span class="badge shrink-0 bg-orange-100 text-orange-800">{{ auth.profile()?.role }}</span>
         </header>
-        <main class="mx-auto max-w-7xl p-4 md:p-6">
+        <main class="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 md:p-6">
           <router-outlet></router-outlet>
         </main>
       </section>
 
       <div *ngIf="taskReminderOpen() && pendingTaskCount() > 0" class="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-        <div class="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">
+        <div class="modal-panel max-w-md">
           <p class="text-xs font-black uppercase text-academy-red">Task Reminder</p>
           <h2 class="mt-1 text-xl font-black">You have {{ pendingTaskCount() }} pending task(s)</h2>
           <p class="mt-2 text-sm text-neutral-600">Open the Tasks section to view deadlines, comments, and progress updates.</p>
-          <div class="mt-5 flex justify-end gap-2">
+          <div class="mobile-actions mt-5">
             <button class="btn-secondary" (click)="taskReminderOpen.set(false)">Later</button>
             <a class="btn-primary" routerLink="/tasks" (click)="taskReminderOpen.set(false)">Open Tasks</a>
           </div>

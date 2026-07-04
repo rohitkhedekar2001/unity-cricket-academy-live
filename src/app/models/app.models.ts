@@ -12,6 +12,7 @@ export type EnquiryStatus = 'New' | 'Follow-up Required' | 'Interested' | 'Not I
 export type CoachDesignation = string;
 export type FeePackage =
   | 'Monthly1800'
+  | 'SaintMaryMonthly2000'
   | 'MonthlySummerCamp2500'
   | 'ThreeMonths4800'
   | 'SixMonths9000'
@@ -259,6 +260,7 @@ export const enquiryStatuses: EnquiryStatus[] = ['New', 'Follow-up Required', 'I
 
 export const feePackages: Record<FeePackage, { label: string; amount: number }> = {
   Monthly1800: { label: 'Monthly', amount: 1800 },
+  SaintMaryMonthly2000: { label: 'Saint Mary Monthly', amount: 2000 },
   MonthlySummerCamp2500: { label: 'Monthly Summer Camp', amount: 2500 },
   ThreeMonths4800: { label: '3 Months', amount: 4800 },
   SixMonths9000: { label: '6 Months', amount: 9000 },

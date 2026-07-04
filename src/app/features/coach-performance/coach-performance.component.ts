@@ -26,7 +26,7 @@ type Section = 'dashboard' | 'rankings' | 'logs' | 'enquiries' | 'adjustments';
         </div>
       </div>
 
-      <nav class="grid gap-2 md:grid-cols-5">
+      <nav class="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <a *ngFor="let item of sections" [routerLink]="item.path" class="rounded-lg border px-3 py-2 text-center text-sm font-black transition"
           [ngClass]="section() === item.key ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:border-academy-orange hover:text-academy-red'">
           {{ item.label }}
@@ -34,7 +34,7 @@ type Section = 'dashboard' | 'rankings' | 'logs' | 'enquiries' | 'adjustments';
       </nav>
 
       <section *ngIf="section() === 'dashboard'" class="space-y-5">
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <article class="panel p-4"><p class="form-label">Top Coach</p><p class="mt-2 text-2xl font-black">{{ summaries()[0]?.coachName || '-' }}</p><p class="text-sm text-green-700">{{ summaries()[0]?.total || 0 }} points</p></article>
           <article class="panel p-4"><p class="form-label">Lowest Coach</p><p class="mt-2 text-2xl font-black">{{ lowestCoach()?.coachName || '-' }}</p><p class="text-sm text-red-700">{{ lowestCoach()?.total || 0 }} points</p></article>
           <article class="panel p-4"><p class="form-label">Logs This Month</p><p class="mt-2 text-2xl font-black">{{ logs().length }}</p></article>
@@ -53,7 +53,7 @@ type Section = 'dashboard' | 'rankings' | 'logs' | 'enquiries' | 'adjustments';
                 <p class="text-2xl font-black">{{ coach.total }}</p>
               </div>
             </div>
-            <div class="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
               <div class="rounded-lg bg-green-50 p-3"><p class="form-label">Attendance</p><p class="font-black">{{ coach.attendance }}</p></div>
               <div class="rounded-lg bg-orange-50 p-3"><p class="form-label">Fees</p><p class="font-black">{{ coach.fees }}</p></div>
               <div class="rounded-lg bg-blue-50 p-3"><p class="form-label">Tasks</p><p class="font-black">{{ coach.tasks }}</p></div>
@@ -63,40 +63,50 @@ type Section = 'dashboard' | 'rankings' | 'logs' | 'enquiries' | 'adjustments';
         </div>
       </section>
 
-      <section *ngIf="section() === 'rankings'" class="panel overflow-hidden">
-        <table class="w-full min-w-[760px] text-left text-sm">
-          <thead class="bg-neutral-950 text-white"><tr><th class="p-3">Rank</th><th>Coach</th><th>Total</th><th>Grade</th><th>Attendance</th><th>Fees</th><th>Tasks</th><th>Enquiry</th></tr></thead>
-          <tbody class="divide-y divide-neutral-100">
-            <tr *ngFor="let row of summaries(); let index = index"><td class="p-3 font-black">#{{ index + 1 }}</td><td class="font-bold">{{ row.coachName }}</td><td>{{ row.total }}</td><td><span class="badge" [ngClass]="gradeClass(row.grade)">{{ row.grade }}</span></td><td>{{ row.attendance }}</td><td>{{ row.fees }}</td><td>{{ row.tasks }}</td><td>{{ row.enquiries }}</td></tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section *ngIf="section() === 'logs'" class="space-y-4">
-        <div class="panel grid gap-3 p-4 md:grid-cols-3">
-          <select class="form-input" [value]="coachFilter()" (change)="coachFilter.set($any($event.target).value); reload()"><option value="">All coaches</option><option *ngFor="let coach of coaches()" [value]="coach.id">{{ coach.profile?.name || coach.designation }}</option></select>
-          <select class="form-input" [value]="categoryFilter()" (change)="categoryFilter.set($any($event.target).value); reload()"><option value="">All categories</option><option *ngFor="let category of categories" [value]="category">{{ category }}</option></select>
-          <button class="btn-secondary" (click)="coachFilter.set(''); categoryFilter.set(''); reload()">Clear</button>
-        </div>
-        <div class="panel overflow-hidden">
-          <table class="w-full min-w-[880px] text-left text-sm">
-            <thead class="bg-neutral-950 text-white"><tr><th class="p-3">Date</th><th>Coach</th><th>Category</th><th>Points</th><th>Description</th><th>Reference</th></tr></thead>
+      <section *ngIf="section() === 'rankings'" class="panel">
+        <div class="table-scroll">
+          <table class="w-full min-w-[760px] text-left text-sm">
+            <thead class="bg-neutral-950 text-white"><tr><th class="p-3">Rank</th><th>Coach</th><th>Total</th><th>Grade</th><th>Attendance</th><th>Fees</th><th>Tasks</th><th>Enquiry</th></tr></thead>
             <tbody class="divide-y divide-neutral-100">
-              <tr *ngFor="let log of logs()"><td class="p-3">{{ log.created_at | date:'dd MMM yyyy, h:mm a' }}</td><td class="font-bold">{{ log.coach?.profile?.name || coachName(log.coach_id) }}</td><td>{{ log.category }}</td><td class="font-black" [class.text-green-700]="log.points > 0" [class.text-red-700]="log.points < 0">{{ log.points }}</td><td>{{ log.description }}</td><td>{{ log.reference_type || '-' }}</td></tr>
+              <tr *ngFor="let row of summaries(); let index = index"><td class="p-3 font-black">#{{ index + 1 }}</td><td class="font-bold">{{ row.coachName }}</td><td>{{ row.total }}</td><td><span class="badge" [ngClass]="gradeClass(row.grade)">{{ row.grade }}</span></td><td>{{ row.attendance }}</td><td>{{ row.fees }}</td><td>{{ row.tasks }}</td><td>{{ row.enquiries }}</td></tr>
             </tbody>
           </table>
         </div>
       </section>
 
+      <section *ngIf="section() === 'logs'" class="space-y-4">
+        <div class="panel grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <select class="form-input" [value]="coachFilter()" (change)="coachFilter.set($any($event.target).value); reload()"><option value="">All coaches</option><option *ngFor="let coach of coaches()" [value]="coach.id">{{ coach.profile?.name || coach.designation }}</option></select>
+          <select class="form-input" [value]="categoryFilter()" (change)="categoryFilter.set($any($event.target).value); reload()"><option value="">All categories</option><option *ngFor="let category of categories" [value]="category">{{ category }}</option></select>
+          <button class="btn-secondary" (click)="coachFilter.set(''); categoryFilter.set(''); reload()">Clear</button>
+        </div>
+        <div class="panel">
+          <div class="table-scroll">
+            <table class="w-full min-w-[880px] text-left text-sm">
+              <thead class="bg-neutral-950 text-white"><tr><th class="p-3">Date</th><th>Coach</th><th>Category</th><th>Points</th><th>Description</th><th>Reference</th></tr></thead>
+              <tbody class="divide-y divide-neutral-100">
+                <tr *ngFor="let log of logs()"><td class="p-3">{{ log.created_at | date:'dd MMM yyyy, h:mm a' }}</td><td class="font-bold">{{ log.coach?.profile?.name || coachName(log.coach_id) }}</td><td>{{ log.category }}</td><td class="font-black" [class.text-green-700]="log.points > 0" [class.text-red-700]="log.points < 0">{{ log.points }}</td><td class="max-w-sm whitespace-normal">{{ log.description }}</td><td>{{ log.reference_type || '-' }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section *ngIf="section() === 'enquiries'" class="space-y-4">
-        <div class="panel grid gap-3 p-4 md:grid-cols-3">
+        <div class="panel grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
           <input class="form-input" placeholder="Search name or phone" [value]="enquirySearch()" (input)="enquirySearch.set($any($event.target).value); loadEnquiries()">
           <select class="form-input" [value]="coachFilter()" (change)="coachFilter.set($any($event.target).value); loadEnquiries()"><option value="">All coaches</option><option *ngFor="let coach of coaches()" [value]="coach.id">{{ coach.profile?.name || coach.designation }}</option></select>
           <select class="form-input" [value]="enquiryStatusFilter()" (change)="enquiryStatusFilter.set($any($event.target).value); loadEnquiries()"><option value="">All statuses</option><option value="Interested">Interested</option><option value="Follow-up">Follow-up</option><option value="Joined">Joined</option><option value="Not Interested">Not Interested</option></select>
         </div>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <article *ngFor="let enquiry of enquiries()" class="panel p-4">
-            <div class="flex items-start justify-between gap-3"><h3 class="font-black">{{ enquiry.student_name || 'Enquiry' }}</h3><span class="badge bg-orange-100 text-orange-800">{{ enquiry.enquiry_status || 'New' }}</span></div>
+            <div class="flex items-start justify-between gap-3">
+              <h3 class="font-black">
+                <a *ngIf="enquiry.converted_student_id" [routerLink]="['/students', enquiry.converted_student_id]" class="transition hover:text-academy-red hover:underline">{{ enquiry.student_name || 'Student' }}</a>
+                <span *ngIf="!enquiry.converted_student_id">{{ enquiry.student_name || 'Enquiry' }}</span>
+              </h3>
+              <span class="badge bg-orange-100 text-orange-800">{{ enquiry.enquiry_status || 'New' }}</span>
+            </div>
             <p class="mt-1 text-sm text-neutral-500">{{ enquiry.parent_phone || '-' }} · {{ enquiry.age_group || '-' }}</p>
             <p class="mt-3 text-sm text-neutral-700">{{ enquiry.discussion_notes || 'No notes added.' }}</p>
             <p class="mt-3 text-xs font-bold uppercase text-neutral-500">Coach: {{ enquiry.assigned_coach?.profile?.name || coachName(enquiry.assigned_coach_id || '') }}</p>
@@ -104,7 +114,7 @@ type Section = 'dashboard' | 'rankings' | 'logs' | 'enquiries' | 'adjustments';
         </div>
       </section>
 
-      <section *ngIf="section() === 'adjustments'" class="grid gap-4 lg:grid-cols-[420px_1fr]">
+      <section *ngIf="section() === 'adjustments'" class="grid gap-4 xl:grid-cols-[minmax(320px,420px)_1fr]">
         <form class="panel p-4" [formGroup]="adjustmentForm" (ngSubmit)="saveAdjustment()">
           <h3 class="font-black">Add Bonus / Penalty</h3>
           <div class="mt-4 space-y-3">

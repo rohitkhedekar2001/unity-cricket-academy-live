@@ -48,7 +48,7 @@ create table if not exists public.students (
   admission_date date not null default current_date,
   address text,
   phone_number text,
-  fee_package text not null check (fee_package in ('Monthly1800','MonthlySummerCamp2500','ThreeMonths4800','SixMonths9000','OneYear15000','Personal5000')),
+  fee_package text not null check (fee_package in ('Monthly1800','SaintMaryMonthly2000','MonthlySummerCamp2500','ThreeMonths4800','SixMonths9000','OneYear15000','Personal5000')),
   fee_plan_name text not null,
   fee_plan_amount int not null check (fee_plan_amount >= 0),
   school_name text,
@@ -86,7 +86,7 @@ create table if not exists public.coach_attendance (
 create table if not exists public.fees (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students(id) on delete cascade,
-  fee_package text not null default 'Monthly1800' check (fee_package in ('Monthly1800','MonthlySummerCamp2500','ThreeMonths4800','SixMonths9000','OneYear15000','Personal5000')),
+  fee_package text not null default 'Monthly1800' check (fee_package in ('Monthly1800','SaintMaryMonthly2000','MonthlySummerCamp2500','ThreeMonths4800','SixMonths9000','OneYear15000','Personal5000')),
   amount int not null check (amount >= 0),
   fee_plan_name text not null,
   fee_plan_amount int not null check (fee_plan_amount >= 0),

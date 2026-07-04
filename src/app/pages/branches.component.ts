@@ -44,7 +44,7 @@ import { ToastService } from '../services/toast.service';
     </section>
 
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4">
-      <form class="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel max-w-lg" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between">
           <h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} branch</h3>
           <button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button>
@@ -55,7 +55,7 @@ import { ToastService } from '../services/toast.service';
           <label class="flex items-center gap-2 text-sm font-bold"><input type="checkbox" formControlName="is_active"> Active branch</label>
         </div>
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
-        <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save branch' }}</button></div>
+        <div class="mobile-actions mt-5"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save branch' }}</button></div>
       </form>
     </div>
   `

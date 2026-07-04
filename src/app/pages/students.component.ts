@@ -44,7 +44,7 @@ import { ToastService } from '../services/toast.service';
         </div>
       </div>
 
-      <div class="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-soft">
+      <div class="table-scroll rounded-lg border border-neutral-200 bg-white shadow-soft">
         <table class="w-full min-w-[900px] text-left text-sm">
           <thead class="bg-neutral-950 text-white">
             <tr><th class="p-3">Name</th><th>Branch</th><th>Batch</th><th>Fee plan</th><th>Phone</th><th>Status</th><th class="text-right pr-3">Actions</th></tr>
@@ -57,10 +57,12 @@ import { ToastService } from '../services/toast.service';
               <td>{{ student.fee_plan_name }} &middot; {{ money(student.fee_plan_amount) }}</td>
               <td>{{ student.phone_number || '-' }}</td>
               <td><span class="badge" [class.bg-green-100]="student.is_active" [class.text-green-800]="student.is_active" [class.bg-neutral-100]="!student.is_active">{{ student.is_active ? 'Active' : 'Inactive' }}</span></td>
-              <td class="space-x-2 pr-3 text-right">
-                <button class="btn-secondary !px-3" (click)="openForm(student)">Edit</button>
-                <button class="btn-secondary !px-3" [disabled]="togglingId() === student.id" (click)="toggleActive(student)">{{ togglingId() === student.id ? 'Saving...' : (student.is_active ? 'Deactivate' : 'Activate') }}</button>
-                <button *ngIf="auth.isAdmin()" class="btn-danger !px-3" (click)="askDelete(student)">Delete</button>
+              <td class="pr-3 text-right">
+                <div class="flex justify-end gap-2">
+                  <button class="btn-secondary !px-3" (click)="openForm(student)">Edit</button>
+                  <button class="btn-secondary !px-3" [disabled]="togglingId() === student.id" (click)="toggleActive(student)">{{ togglingId() === student.id ? 'Saving...' : (student.is_active ? 'Deactivate' : 'Activate') }}</button>
+                  <button *ngIf="auth.isAdmin()" class="btn-danger !px-3" (click)="askDelete(student)">Delete</button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -69,7 +71,7 @@ import { ToastService } from '../services/toast.service';
     </section>
 
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 overflow-auto bg-black/55 p-4">
-      <form class="mx-auto my-6 max-w-3xl rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel mx-auto my-6 max-w-3xl" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between">
           <h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} student</h3>
           <button type="button" class="btn-secondary !px-3" (click)="formOpen.set(false)">Close</button>
@@ -88,7 +90,7 @@ import { ToastService } from '../services/toast.service';
           <label><span class="form-label">Fee amount</span><input class="form-input mt-1" type="number" formControlName="fee_plan_amount"></label>
           <label class="md:col-span-2"><span class="form-label">Address</span><textarea class="form-input mt-1" formControlName="address" rows="3"></textarea></label>
         </div>
-        <div class="mt-5 flex justify-end gap-2">
+        <div class="mobile-actions mt-5">
           <button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button>
           <button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save student' }}</button>
         </div>

@@ -8,7 +8,7 @@ import { FormsModule } from '@angular/forms';
   imports: [CommonModule, FormsModule],
   template: `
     <div *ngIf="open" class="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4">
-      <section class="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl">
+      <section class="modal-panel max-w-md">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h2 class="text-lg font-bold text-neutral-950">Confirm delete</h2>
@@ -19,7 +19,7 @@ import { FormsModule } from '@angular/forms';
           </button>
         </div>
         <input class="form-input mt-4" [ngModel]="text()" (ngModelChange)="text.set($event)" [ngModelOptions]="{ standalone: true }" placeholder="DELETE" autocomplete="off">
-        <div class="mt-5 flex justify-end gap-2">
+        <div class="mobile-actions mt-5">
           <button class="btn-secondary" type="button" (click)="cancel.emit()">Cancel</button>
           <button class="btn-danger" type="button" [disabled]="text() !== 'DELETE'" (click)="confirm.emit()">
             Delete

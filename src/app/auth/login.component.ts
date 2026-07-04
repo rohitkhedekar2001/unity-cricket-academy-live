@@ -8,12 +8,12 @@ import { AuthService } from '../services/auth.service';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <main class="grid min-h-screen place-items-center bg-neutral-950 p-4">
-      <section class="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
+    <main class="grid min-h-screen place-items-center bg-neutral-950 px-3 py-6 sm:p-4">
+      <section class="w-full max-w-md rounded-lg bg-white p-4 shadow-2xl sm:p-6">
         <div class="flex items-center gap-3">
-          <img src="assets/logo.png" alt="Unity Cricket Academy logo" class="h-14 w-14 rounded-lg object-cover">
-          <div>
-            <h1 class="text-2xl font-black text-neutral-950">Unity Cricket Academy</h1>
+          <img src="assets/logo.png" alt="Unity Cricket Academy logo" class="h-12 w-12 shrink-0 rounded-lg object-cover sm:h-14 sm:w-14">
+          <div class="min-w-0">
+            <h1 class="text-xl font-black leading-tight text-neutral-950 sm:text-2xl">Unity Cricket Academy</h1>
             <p class="text-sm text-neutral-500">Management System</p>
           </div>
         </div>

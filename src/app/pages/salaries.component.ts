@@ -37,35 +37,35 @@ interface SalarySummary {
           <label><span class="form-label">Fixed monthly salary</span><input class="form-input mt-1 bg-neutral-100" type="number" formControlName="fixed_salary" readonly></label>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label><span class="form-label">Working days</span><input class="form-input mt-1 bg-neutral-100" type="number" formControlName="working_days" readonly></label>
           <label><span class="form-label">Leave Taken</span><input class="form-input mt-1" type="number" min="0" formControlName="leave_taken"></label>
           <label><span class="form-label">Paid Leave</span><input class="form-input mt-1" type="number" min="0" formControlName="paid_leave"></label>
           <label><span class="form-label">Per Day Salary</span><input class="form-input mt-1 bg-neutral-100" type="number" formControlName="per_day_salary" readonly></label>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label><span class="form-label">Personal Coaching Count</span><input class="form-input mt-1" type="number" min="0" formControlName="personal_coaching_count"></label>
           <label><span class="form-label">Personal Coaching Amount</span><input class="form-input mt-1" type="number" min="0" formControlName="personal_coaching_amount"></label>
           <label><span class="form-label">Bonus</span><input class="form-input mt-1" type="number" min="0" formControlName="bonus"></label>
           <label><span class="form-label">Penalty</span><input class="form-input mt-1" type="number" min="0" formControlName="penalty_amount"></label>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label><span class="form-label">Advance Taken</span><input class="form-input mt-1" type="number" min="0" formControlName="advance_taken"></label>
           <label><span class="form-label">Leave Deduction</span><input class="form-input mt-1 bg-neutral-100" type="number" formControlName="leave_deduction" readonly></label>
           <label><span class="form-label">Base Salary</span><input class="form-input mt-1 bg-neutral-100" type="number" formControlName="base_salary" readonly></label>
           <label><span class="form-label">Grand Total Salary</span><input class="form-input mt-1 bg-neutral-100 font-black text-academy-red" type="number" formControlName="grand_total_salary" readonly></label>
         </div>
 
-        <section class="grid gap-3 rounded-lg bg-neutral-50 p-4 md:grid-cols-4">
+        <section class="grid gap-3 rounded-lg bg-neutral-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
           <div><p class="form-label">Base Salary</p><p class="mt-1 text-xl font-black">{{ money(summary().baseSalary) }}</p></div>
           <div><p class="form-label">Total Additions</p><p class="mt-1 text-xl font-black text-green-700">{{ money(summary().additions) }}</p></div>
           <div><p class="form-label">Total Deductions</p><p class="mt-1 text-xl font-black text-red-700">{{ money(summary().deductions) }}</p></div>
           <div><p class="form-label">Final Payable Salary</p><p class="mt-1 text-xl font-black text-academy-red">{{ money(summary().grandTotal) }}</p></div>
         </section>
 
-        <div class="flex justify-end">
+        <div class="mobile-actions">
           <button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Generating...' : 'Generate salary' }}</button>
         </div>
       </form>
@@ -120,8 +120,8 @@ interface SalarySummary {
               <p><span class="form-label block">Additions</span>{{ money((salary.personal_coaching_amount || 0) + (salary.bonus || 0)) }}</p>
               <p><span class="form-label block">Deductions</span>{{ money((salary.leave_deduction || 0) + (salary.penalty_amount || 0) + (salary.advance_taken || 0)) }}</p>
             </div>
-            <div class="flex justify-end">
-              <button class="btn-secondary mr-2 !px-4" type="button" (click)="downloadSalarySlip(salary)">Download Slip</button>
+            <div class="mobile-actions">
+              <button class="btn-secondary !px-4" type="button" (click)="downloadSalarySlip(salary)">Download Slip</button>
               <button *ngIf="auth.isAdmin()" class="btn-danger !px-4" [disabled]="deleting()" (click)="askDelete(salary)">Delete</button>
             </div>
           </article>
@@ -143,7 +143,7 @@ interface SalarySummary {
               <td>{{ money((salary.personal_coaching_amount || 0) + (salary.bonus || 0)) }}</td>
               <td>{{ money((salary.leave_deduction || 0) + (salary.penalty_amount || 0) + (salary.advance_taken || 0)) }}</td>
               <td class="text-right font-bold text-academy-red">{{ money(salary.grand_total_salary || salary.final_salary) }}</td>
-              <td class="space-x-2 pr-3 text-right"><button class="btn-secondary !px-3" type="button" (click)="downloadSalarySlip(salary)">PDF</button><button *ngIf="auth.isAdmin()" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(salary)">Delete</button></td>
+              <td class="pr-3 text-right"><div class="flex justify-end gap-2"><button class="btn-secondary !px-3" type="button" (click)="downloadSalarySlip(salary)">PDF</button><button *ngIf="auth.isAdmin()" class="btn-danger !px-3" [disabled]="deleting()" (click)="askDelete(salary)">Delete</button></div></td>
             </tr>
           </tbody>
         </table>

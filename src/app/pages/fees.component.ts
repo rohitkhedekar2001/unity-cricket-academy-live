@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Batch, Branch, feePackages, FeePackage, Fee, Student } from '../models/app.models';
 import { DataService } from '../services/data.service';
 import { AuthService } from '../services/auth.service';
@@ -24,7 +25,7 @@ interface FeeStatusRow {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, DeleteConfirmComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, DeleteConfirmComponent],
   template: `
     <section class="space-y-5">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -82,8 +83,8 @@ interface FeeStatusRow {
 
       <section class="panel overflow-hidden">
         <div *ngIf="loading()" class="p-6 text-center text-sm font-bold text-neutral-500">Loading fee details...</div>
-        <div *ngIf="!loading()" class="overflow-x-auto">
-          <table class="w-full min-w-[1360px] border-separate border-spacing-0 text-left text-sm">
+        <div *ngIf="!loading()" class="table-scroll">
+          <table class="w-full min-w-[1180px] border-separate border-spacing-0 text-left text-sm lg:min-w-[1360px]">
             <thead class="bg-neutral-950 text-white">
               <tr>
                 <th class="w-52 whitespace-nowrap px-4 py-3">Student Name</th>
@@ -100,13 +101,13 @@ interface FeeStatusRow {
             <tbody class="divide-y divide-neutral-100 bg-white">
               <tr *ngIf="visibleRows().length === 0"><td colspan="9" class="p-6 text-center font-semibold text-neutral-500">{{ activeTab() === 'paid' ? 'No paid fee records found.' : 'No pending students found.' }}</td></tr>
               <tr *ngFor="let row of visibleRows()" class="transition hover:bg-orange-50/40">
-                <td class="px-4 py-3 align-middle font-bold text-neutral-950">{{ row.student.name }}</td>
+                <td class="px-4 py-3 align-middle font-bold text-neutral-950"><a [routerLink]="['/students', row.student.id]" class="transition hover:text-academy-red hover:underline">{{ row.student.name }}</a></td>
                 <td class="px-4 py-3 align-middle text-neutral-700">{{ row.batchName }}</td>
                 <td class="px-4 py-3 text-right align-middle font-semibold">{{ money(row.expectedAmount) }}</td>
                 <td class="px-4 py-3 text-right align-middle font-black text-green-700">{{ money(row.paidAmount) }}</td>
                 <td class="px-4 py-3 text-right align-middle font-black" [class.text-academy-red]="row.pendingAmount > 0">{{ money(row.pendingAmount) }}</td>
                 <td class="px-4 py-3 align-middle">
-                  <div class="min-w-[280px] rounded-lg bg-orange-50 px-3 py-2">
+                  <div class="min-w-[240px] rounded-lg bg-orange-50 px-3 py-2 lg:min-w-[280px]">
                     <p class="font-black leading-5 text-neutral-950">{{ coveragePeriod(row) || '-' }}</p>
                     <p class="mt-1 text-xs font-semibold text-neutral-500">{{ row.paymentDate ? 'Paid on ' + displayDate(row.paymentDate) : 'No payment yet' }}</p>
                   </div>
@@ -132,18 +133,18 @@ interface FeeStatusRow {
           <h3 class="font-black">Payment Records</h3>
           <p class="text-sm text-neutral-500">Individual fee entries for the selected month and batch.</p>
         </div>
-        <div class="overflow-x-auto">
-          <table class="w-full min-w-[1180px] border-separate border-spacing-0 text-left text-sm">
+        <div class="table-scroll">
+          <table class="w-full min-w-[1040px] border-separate border-spacing-0 text-left text-sm lg:min-w-[1180px]">
             <thead class="bg-neutral-950 text-white"><tr><th class="w-52 whitespace-nowrap px-4 py-3">Student</th><th class="w-40 whitespace-nowrap px-4 py-3">Batch</th><th class="w-28 whitespace-nowrap px-4 py-3">Month</th><th class="w-44 whitespace-nowrap px-4 py-3">Plan</th><th class="w-80 whitespace-nowrap px-4 py-3">Coverage</th><th class="w-36 whitespace-nowrap px-4 py-3">Next Due</th><th class="w-36 whitespace-nowrap px-4 py-3">Paid Date</th><th class="w-32 whitespace-nowrap px-4 py-3 text-right">Amount</th><th class="w-40 whitespace-nowrap px-4 py-3 text-right">Action</th></tr></thead>
             <tbody class="divide-y divide-neutral-100 bg-white">
               <tr *ngIf="visibleFees().length === 0"><td colspan="9" class="p-5 text-center font-semibold text-neutral-500">No payment records found.</td></tr>
               <tr *ngFor="let fee of visibleFees()" class="transition hover:bg-orange-50/40">
-                <td class="px-4 py-3 align-middle font-bold text-neutral-950">{{ studentName(fee.student_id) }}</td>
+                <td class="px-4 py-3 align-middle font-bold text-neutral-950"><a [routerLink]="['/students', fee.student_id]" class="transition hover:text-academy-red hover:underline">{{ studentName(fee.student_id) }}</a></td>
                 <td class="px-4 py-3 align-middle text-neutral-700">{{ batchName(studentById(fee.student_id)?.batch_id ?? null) }}</td>
                 <td class="whitespace-nowrap px-4 py-3 align-middle">{{ fee.month }}</td>
                 <td class="px-4 py-3 align-middle">{{ fee.fee_plan_name }}</td>
                 <td class="px-4 py-3 align-middle">
-                  <div class="min-w-[280px] rounded-lg bg-orange-50 px-3 py-2 font-bold text-neutral-950">{{ feeCoverageLabel(fee) }}</div>
+                  <div class="min-w-[240px] rounded-lg bg-orange-50 px-3 py-2 font-bold text-neutral-950 lg:min-w-[280px]">{{ feeCoverageLabel(fee) }}</div>
                 </td>
                 <td class="whitespace-nowrap px-4 py-3 align-middle font-semibold">{{ displayDate(feeNextDueDate(fee)) }}</td>
                 <td class="whitespace-nowrap px-4 py-3 align-middle">{{ displayDate(fee.paid_date) }}</td>
@@ -156,7 +157,7 @@ interface FeeStatusRow {
       </section>
     </section>
     <div *ngIf="formOpen()" class="fixed inset-0 z-40 grid place-items-center bg-black/55 p-4">
-      <form class="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl" [formGroup]="form" (ngSubmit)="save()">
+      <form class="modal-panel max-w-lg" [formGroup]="form" (ngSubmit)="save()">
         <div class="flex items-center justify-between"><h3 class="text-lg font-black">{{ form.value.id ? 'Edit' : 'Add' }} fee</h3><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Close</button></div>
         <div class="mt-4 space-y-4">
           <label *ngIf="auth.isAdmin()" class="block"><span class="form-label">Branch</span><select class="form-input mt-1" formControlName="branch_id" (change)="onFormBranchChange()"><option value="">Select branch</option><option *ngFor="let branch of branches()" [value]="branch.id">{{ branch.name }}</option></select></label>
@@ -172,7 +173,7 @@ interface FeeStatusRow {
           </div>
         </div>
         <p *ngIf="formError()" class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{{ formError() }}</p>
-        <div class="mt-5 flex justify-end gap-2"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save fee' }}</button></div>
+        <div class="mobile-actions mt-5"><button type="button" class="btn-secondary" (click)="formOpen.set(false)">Cancel</button><button class="btn-primary" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving...' : 'Save fee' }}</button></div>
       </form>
     </div>
     <app-delete-confirm [open]="!!deleteTarget()" [itemName]="deleteLabel()" (cancel)="deleteTarget.set(null)" (confirm)="removeFee()"></app-delete-confirm>
@@ -529,6 +530,7 @@ export class FeesComponent implements OnInit {
   feePackageMonths(packageName: FeePackage): number {
     const months: Record<FeePackage, number> = {
       Monthly1800: 1,
+      SaintMaryMonthly2000: 1,
       MonthlySummerCamp2500: 1,
       ThreeMonths4800: 3,
       SixMonths9000: 6,
