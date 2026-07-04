@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { DataService } from '../services/data.service';
+import { ThemeService } from '../services/theme.service';
+import { AppIconComponent } from '../shared/app-icon.component';
 
 interface NavItem {
   label: string;
@@ -13,9 +15,9 @@ interface NavItem {
 
 @Component({
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, AppIconComponent],
   template: `
-    <div class="min-h-screen overflow-x-hidden bg-neutral-100 lg:flex">
+    <div class="app-shell-root min-h-screen overflow-x-hidden bg-neutral-100 transition-colors lg:flex">
       <div *ngIf="menuOpen()" class="fixed inset-0 z-20 bg-black/50 lg:hidden" (click)="menuOpen.set(false)"></div>
       <aside [class.hidden]="!menuOpen()" class="fixed inset-y-0 left-0 z-30 w-[min(18rem,86vw)] bg-neutral-950 text-white shadow-2xl lg:static lg:block lg:w-72 lg:shadow-none">
         <div class="flex h-full flex-col">
@@ -62,8 +64,8 @@ interface NavItem {
         </div>
       </aside>
 
-      <section class="min-w-0 flex-1">
-        <header class="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-neutral-200 bg-white/90 px-3 py-3 backdrop-blur sm:px-4">
+      <section class="app-main-surface min-w-0 flex-1">
+        <header class="app-content-header sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-neutral-200 bg-white/90 px-3 py-3 backdrop-blur sm:px-4">
           <button class="btn-secondary lg:hidden" (click)="menuOpen.set(true)" title="Open menu">
             Menu
           </button>
@@ -71,7 +73,21 @@ interface NavItem {
             <p class="text-xs font-bold uppercase text-academy-red">Unity Cricket Academy</p>
             <h1 class="truncate text-base font-black text-neutral-950 sm:text-lg">Management Console</h1>
           </div>
-          <span class="badge shrink-0 bg-orange-100 text-orange-800">{{ auth.profile()?.role }}</span>
+          <div class="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              class="dashboard-theme-toggle !min-h-10 !px-3"
+              [class.is-dark]="theme.darkMode()"
+              [attr.aria-pressed]="theme.darkMode()"
+              [attr.aria-label]="theme.darkMode() ? 'Switch to light mode' : 'Switch to dark mode'"
+              [title]="theme.darkMode() ? 'Switch to light mode' : 'Switch to dark mode'"
+              (click)="theme.toggle()"
+            >
+              <app-icon [name]="theme.darkMode() ? 'sun' : 'moon'" [size]="18"></app-icon>
+              <span class="hidden md:inline">{{ theme.darkMode() ? 'Light' : 'Dark' }}</span>
+            </button>
+            <span class="badge hidden shrink-0 bg-orange-100 text-orange-800 sm:inline-flex">{{ auth.profile()?.role }}</span>
+          </div>
         </header>
         <main class="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 md:p-6">
           <router-outlet></router-outlet>
@@ -121,7 +137,7 @@ export class AppShellComponent {
     },
     { label: 'Salaries', path: '/salaries', admin: true }
   ];
-  constructor(readonly auth: AuthService, private readonly data: DataService) {
+  constructor(readonly auth: AuthService, private readonly data: DataService, readonly theme: ThemeService) {
     effect(() => {
       const profile = this.auth.profile();
       if (profile?.role === 'Coach' && !this.reminderLoaded) {

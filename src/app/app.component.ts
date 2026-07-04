@@ -4,6 +4,7 @@ import { LoadingSpinnerComponent } from './shared/loading-spinner.component';
 import { ToastContainerComponent } from './shared/toast-container.component';
 import { AuthService } from './services/auth.service';
 import { DataService } from './services/data.service';
+import { ThemeService } from './services/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -16,5 +17,5 @@ import { DataService } from './services/data.service';
   `
 })
 export class AppComponent {
-  constructor(readonly auth: AuthService, readonly data: DataService) {}
+  constructor(readonly auth: AuthService, readonly data: DataService, readonly theme: ThemeService) {}
 }
